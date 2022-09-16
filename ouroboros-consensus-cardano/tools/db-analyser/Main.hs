@@ -159,6 +159,11 @@ parseAnalysis = asum [
                 <> " of the ledger state and inserts markers for 'significant'"
                 <> " events, such as for example epoch transitions."
         ]
+    , flag' BenchmarkLedgerOps $ mconcat [
+          long "benchmark-ledger-ops"
+        , help $ "Maintain ledger state and benchmark the main ledger calculations for each block."
+                <> "Prints one line of stats to stdout per block."
+        ]
     , fmap ReproMempoolAndForge $ option auto $ mconcat [
           long "repro-mempool-and-forge"
         , help $ "Maintain ledger state and mempool trafficking the"
@@ -280,7 +285,7 @@ analyse CmdLine {..} args =
               , tracer = analysisTracer
               }
             tipPoint <- atomically $ ImmutableDB.getTipPoint immutableDB
-            putStrLn $ "ImmutableDB tip: " ++ show tipPoint
+            hPutStrLn stderr $ "ImmutableDB tip: " ++ show tipPoint
         SelectChainDB ->
           ChainDB.withDB chainDbArgs $ \chainDB -> do
             runAnalysis analysis $ AnalysisEnv {
@@ -293,7 +298,7 @@ analyse CmdLine {..} args =
               , tracer = analysisTracer
               }
             tipPoint <- atomically $ ChainDB.getTipPoint chainDB
-            putStrLn $ "ChainDB tip: " ++ show tipPoint
+            hPutStrLn stderr $ "ChainDB tip: " ++ show tipPoint
   where
     mkTracer False = return nullTracer
     mkTracer True  = do

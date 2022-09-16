@@ -27,6 +27,7 @@ import           Cardano.Crypto (RequiresNetworkMagic (..))
 import qualified Cardano.Crypto as Crypto
 import qualified Cardano.Crypto.Hash.Class as CryptoClass
 import qualified Cardano.Ledger.Alonzo.Genesis as SL (AlonzoGenesis)
+import qualified Cardano.Ledger.Alonzo.Tx (ValidatedTx(..))
 import           Cardano.Ledger.Crypto
 import qualified Cardano.Ledger.Era as Core
 import           Control.Monad (when)
@@ -237,6 +238,8 @@ instance (HasAnnTip (CardanoBlock StandardCrypto), GetPrevHash (CardanoBlock Sta
         knownEBBs (Proxy @ByronBlock)
 
   emitTraces = analyseWithLedgerState emitTraces
+
+  blockStats = analyseBlock blockStats
 
 type CardanoBlockArgs = Args (CardanoBlock StandardCrypto)
 

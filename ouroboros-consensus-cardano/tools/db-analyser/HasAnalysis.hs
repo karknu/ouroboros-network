@@ -1,4 +1,6 @@
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies     #-}
+
 module HasAnalysis (
     HasAnalysis (..)
   , HasProtocolInfo (..)
@@ -14,6 +16,7 @@ import           Ouroboros.Consensus.HeaderValidation (HasAnnTip (..))
 import           Ouroboros.Consensus.Ledger.Abstract
 import           Ouroboros.Consensus.Node.ProtocolInfo
 import           Ouroboros.Consensus.Storage.Serialisation (SizeInBytes)
+import           Ouroboros.Consensus.Util.Condense (Condense)
 
 {-------------------------------------------------------------------------------
   HasAnalysis
@@ -25,7 +28,7 @@ data WithLedgerState blk = WithLedgerState
   , wlsStateAfter  :: LedgerState blk
   }
 
-class (HasAnnTip blk, GetPrevHash blk) => HasAnalysis blk where
+class (HasAnnTip blk, GetPrevHash blk, Condense (HeaderHash blk)) => HasAnalysis blk where
 
   countTxOutputs :: blk -> Int
   blockTxSizes   :: blk -> [SizeInBytes]
@@ -33,6 +36,8 @@ class (HasAnnTip blk, GetPrevHash blk) => HasAnalysis blk where
 
   -- | Emit trace markers at points in processing.
   emitTraces     :: WithLedgerState blk -> [String]
+
+  blockStats     :: blk -> [String]
 
 class HasProtocolInfo blk where
   data Args blk

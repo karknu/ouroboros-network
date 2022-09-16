@@ -15,10 +15,11 @@ module Block.Shelley (
   ) where
 
 import qualified Data.Aeson as Aeson
-import           Data.Foldable (asum, toList)
+import           Data.Foldable (asum, foldl', toList)
 import qualified Data.Map.Strict as Map
-import           Data.Maybe (catMaybes)
+import           Data.Maybe (catMaybes, maybeToList)
 import           Data.Maybe.Strict
+import           Data.Word (Word64)
 import           Data.Sequence.Strict (StrictSeq)
 import           GHC.Records (HasField, getField)
 import           Options.Applicative
@@ -27,6 +28,14 @@ import qualified Cardano.Ledger.Core as Core
 import qualified Cardano.Ledger.Era as CL
 import qualified Cardano.Ledger.Shelley.API as SL
 import qualified Cardano.Ledger.Shelley.RewardUpdate as SL
+
+import           Cardano.Ledger.Allegra (AllegraEra)
+import           Cardano.Ledger.Alonzo (AlonzoEra)
+import qualified Cardano.Ledger.Alonzo.Scripts as Alonzo
+import qualified Cardano.Ledger.Alonzo.Tx as Alonzo
+import           Cardano.Ledger.Babbage (BabbageEra)
+import           Cardano.Ledger.Mary (MaryEra)
+import           Cardano.Ledger.Shelley (ShelleyEra)
 
 import qualified Ouroboros.Consensus.Mempool.TxLimits as TxLimits
 import           Ouroboros.Consensus.Node.ProtocolInfo
@@ -48,6 +57,7 @@ import           HasAnalysis
 
 -- | Usable for each Shelley-based era
 instance ( ShelleyCompatible proto era
+         , PerEraAnalysis era
          , HasField "outputs" (Core.TxBody era) (StrictSeq (Core.TxOut era))
          ) => HasAnalysis (ShelleyBlock proto era) where
 
@@ -81,6 +91,43 @@ instance ( ShelleyCompatible proto era
         (_, _) -> Nothing
     ]
 
+  blockStats blk =
+      [ show $ length $ blockTxSizes blk
+      , show $ sum $ blockTxSizes blk
+      ]
+      ++
+      [ show $ foldl' (\acc tx -> acc + f tx) 0 txs
+      | f <- maybeToList txExUnitsSteps
+      ]
+    where
+      txs :: StrictSeq (Core.Tx era)
+      txs = case Shelley.shelleyBlockRaw blk of
+        SL.Block _ body -> CL.fromTxSeq @era body
+
+-----
+
+class PerEraAnalysis era where
+    txExUnitsSteps :: Maybe (Core.Tx era -> Word64)
+
+instance PerEraAnalysis (ShelleyEra c) where txExUnitsSteps = Nothing
+instance PerEraAnalysis (AllegraEra c) where txExUnitsSteps = Nothing
+instance PerEraAnalysis (MaryEra    c) where txExUnitsSteps = Nothing
+
+instance ( HasField "wits" (Core.Tx (AlonzoEra c)) (Core.Witnesses (AlonzoEra c))
+         )
+      => PerEraAnalysis (AlonzoEra c) where
+    txExUnitsSteps = Just $ \tx ->
+        let (Alonzo.ExUnits _mem steps) = Alonzo.totExUnits tx
+        in toEnum $ fromEnum steps
+
+instance ( HasField "wits" (Core.Tx (BabbageEra c)) (Core.Witnesses (BabbageEra c))
+         )
+      => PerEraAnalysis (BabbageEra c) where
+    txExUnitsSteps = Just $ \tx ->
+        let (Alonzo.ExUnits _mem steps) = Alonzo.totExUnits tx
+        in toEnum $ fromEnum steps
+
+-----
 
 -- | Shelley-era specific
 instance HasProtocolInfo (ShelleyBlock (TPraos StandardCrypto) StandardShelley) where

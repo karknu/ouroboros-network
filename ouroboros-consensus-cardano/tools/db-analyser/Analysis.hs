@@ -3,10 +3,12 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE NamedFieldPuns      #-}
+{-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
+
 module Analysis (
     AnalysisEnv (..)
   , AnalysisName (..)
@@ -21,16 +23,22 @@ import           Data.List (intercalate)
 import qualified Data.Map.Strict as Map
 import           Data.Word (Word16, Word64)
 import qualified Debug.Trace as Debug
+import qualified GHC.Stats as GC
 import           NoThunks.Class (noThunks)
+import qualified System.IO as IO
 
+import qualified Cardano.Slotting.Slot as Slotting
 import           Ouroboros.Consensus.Block
 import           Ouroboros.Consensus.Config
+import           Ouroboros.Consensus.Forecast (forecastFor)
 import           Ouroboros.Consensus.HeaderValidation (HasAnnTip (..),
-                     HeaderState (..), annTipPoint)
+                     HeaderState (..), annTipPoint, tickHeaderState,
+                     validateHeader)
 import           Ouroboros.Consensus.Ledger.Abstract (LedgerCfg, LedgerConfig,
-                     applyChainTick, tickThenApplyLedgerResult, tickThenReapply)
+                     applyBlockLedgerResult, applyChainTick,
+                     tickThenApplyLedgerResult, tickThenReapply)
 import           Ouroboros.Consensus.Ledger.Basics (LedgerResult (..),
-                     LedgerState)
+                     LedgerState, getTipSlot)
 import           Ouroboros.Consensus.Ledger.Extended
 import           Ouroboros.Consensus.Ledger.SupportsMempool
                      (LedgerSupportsMempool)
@@ -43,6 +51,7 @@ import qualified Ouroboros.Consensus.Mempool.TxSeq as MP
 import           Ouroboros.Consensus.Storage.Common (BlockComponent (..),
                      StreamFrom (..))
 import           Ouroboros.Consensus.Storage.FS.API (SomeHasFS (..))
+import           Ouroboros.Consensus.Util.Condense (condense)
 import qualified Ouroboros.Consensus.Util.IOLike as IOLike
 import           Ouroboros.Consensus.Util.ResourceRegistry
 
@@ -75,6 +84,7 @@ data AnalysisName =
   | CountBlocks
   | CheckNoThunksEvery Word64
   | TraceLedgerProcessing
+  | BenchmarkLedgerOps
   | ReproMempoolAndForge Int
   deriving Show
 
@@ -103,6 +113,7 @@ runAnalysis analysisName env@(AnalysisEnv { tracer }) = do
     go CountBlocks                 = countBlocks env
     go (CheckNoThunksEvery nBks)   = checkNoThunksEvery nBks env
     go TraceLedgerProcessing       = traceLedgerProcessing env
+    go BenchmarkLedgerOps          = benchmarkLedgerOps env
     go (ReproMempoolAndForge nBks) = reproMempoolForge nBks env
 
 type Analysis blk = AnalysisEnv IO blk -> IO ()
@@ -433,6 +444,113 @@ traceLedgerProcessing
               HasAnalysis.WithLedgerState blk (ledgerState oldLedger) (ledgerState newLedger))
       mapM_ Debug.traceMarkerIO traces
       return $ newLedger
+
+{-------------------------------------------------------------------------------
+  Analysis: maintain a ledger state and time the five major ledger calculations
+  for each block
+-------------------------------------------------------------------------------}
+
+data St blk = St !IOLike.Time !GC.RTSStats !(ExtLedgerState blk)
+
+infixl :&
+pattern (:&) :: a -> b -> (a, b)
+pattern x :& y = (x, y)
+{-# COMPLETE (:&) #-}
+
+benchmarkLedgerOps ::
+  forall blk.
+     ( HasAnalysis blk
+     , LedgerSupportsProtocol blk
+     )
+  => Analysis blk
+benchmarkLedgerOps
+  (AnalysisEnv {db, registry, initLedger, cfg, limit}) = do
+    IO.hSetBuffering IO.stdout (IO.BlockBuffering $ Just $ 4*1024*1024)   -- useful?
+    putStrLn $ unwords $ reverse $ "...era-specific stats" : theHeadings
+
+    prevt5 <- IOLike.getMonotonicTime
+    rtsStats <- GC.getRTSStats
+    let st0 = St prevt5 rtsStats initLedger
+
+    void $ processAll db registry GetBlock initLedger limit st0 process
+  where
+    ccfg = topLevelConfigProtocol cfg
+    lcfg = topLevelConfigLedger   cfg
+
+    showTimeDiff t' t = show (fromEnum (t' `IOLike.diffTime` t) `div` 1000000)
+
+    (theHeadings, theCells) =
+        let infixl `o`
+            (headings, acc) `o` heading =
+              ( heading : headings
+              , \(ts, t') ->
+                  let (cells, t) = acc ts
+                  in (showTimeDiff t' t : cells, t')
+              )
+            acc0 (                                 rp :& slotGap :& whole :&    majGcCount :&    gc_us, t0) =
+                ( reverse [condense (realPointSlot rp),  slotGap,   whole, show majGcCount, show gc_us]
+                , t0
+                )
+        in
+        (reverse [                              "slot", "slotGap", "whole",    "majGcCount",    "gc"], acc0)
+          `o` "forecast"
+          `o` "headerTick"
+          `o` "headerApply"
+          `o` "blockTick"
+          `o` "blockApply"
+
+    slotCount :: SlotNo -> WithOrigin SlotNo -> String
+    slotCount (SlotNo i) = show . \case
+        Slotting.Origin        -> i
+        Slotting.At (SlotNo j) -> i - j
+
+    process :: St blk -> blk -> IO (St blk)
+    process (St prevt5 prevRtsStats extLdgrSt) blk = do
+        let slot = blockSlot      blk
+            rp   = blockRealPoint blk
+
+        t0 <- IOLike.getMonotonicTime
+
+        -- forecast the LedgerView
+        let forecaster = ledgerViewForecastAt lcfg (ledgerState extLdgrSt)
+        !tickedLedgerView <- case runExcept $ forecastFor forecaster slot of
+            Left err -> fail $ "benchmark doesn't support headers beyond the forecast limit: " <> show rp <> " " <> show err
+            Right !x -> pure x
+
+        t1 <- IOLike.getMonotonicTime
+
+        -- tick the HeaderState
+        let !tickedHeaderState = tickHeaderState ccfg tickedLedgerView slot (headerState extLdgrSt)
+
+        t2 <- IOLike.getMonotonicTime
+
+        -- apply the header
+        !headerState' <- case runExcept $ validateHeader cfg tickedLedgerView (getHeader blk) tickedHeaderState of
+            Left err -> fail $ "benchmark doesn't support invalid headers: " <> show rp <> " " <> show err
+            Right x -> pure x
+
+        t3 <- IOLike.getMonotonicTime
+
+        -- tick the ledger state
+        let !tickedLdgrSt = applyChainTick lcfg slot (ledgerState extLdgrSt)
+
+        t4 <- IOLike.getMonotonicTime
+
+        -- apply the block
+        !ldgrSt' <- case runExcept (lrResult <$> applyBlockLedgerResult lcfg blk tickedLdgrSt) of
+            Left err -> fail $ "benchmark doesn't support invalid blocks: " <> show rp <> " " <> show err
+            Right x -> pure x
+
+        t5 <- IOLike.getMonotonicTime
+
+        rtsStats <- GC.getRTSStats
+
+        putStrLn
+          $ unwords
+          $ reverse (fst $ theCells $ rp :& (slot `slotCount` getTipSlot extLdgrSt) :& showTimeDiff t5 prevt5 :& ((GC.gc_elapsed_ns rtsStats - GC.gc_elapsed_ns prevRtsStats) `div` 1000) :& (GC.major_gcs rtsStats - GC.major_gcs prevRtsStats) :& t0 :& t1 :& t2 :& t3 :& t4 :& t5)
+            ++ HasAnalysis.blockStats blk
+
+        pure $ St t5 rtsStats $ ExtLedgerState ldgrSt' headerState'
 
 {-------------------------------------------------------------------------------
   Analysis: reforge the blocks, via the mempool
