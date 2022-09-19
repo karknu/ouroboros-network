@@ -450,7 +450,7 @@ traceLedgerProcessing
   for each block
 -------------------------------------------------------------------------------}
 
-data St blk = St !IOLike.Time !GC.RTSStats !(ExtLedgerState blk)
+data St blk = St {- !IOLike.Time -} !GC.RTSStats !(ExtLedgerState blk)
 
 infixl :&
 pattern (:&) :: a -> b -> (a, b)
@@ -468,16 +468,18 @@ benchmarkLedgerOps
     IO.hSetBuffering IO.stdout (IO.BlockBuffering $ Just $ 4*1024*1024)   -- useful?
     putStrLn $ unwords $ reverse $ "...era-specific stats" : theHeadings
 
-    prevt5 <- IOLike.getMonotonicTime
     rtsStats <- GC.getRTSStats
-    let st0 = St prevt5 rtsStats initLedger
+    let st0 = St rtsStats initLedger
 
     void $ processAll db registry GetBlock initLedger limit st0 process
   where
     ccfg = topLevelConfigProtocol cfg
     lcfg = topLevelConfigLedger   cfg
 
-    showTimeDiff t' t = show (fromEnum (t' `IOLike.diffTime` t) `div` 1000000)
+    _showTimeDiff t' t = show $ fromEnum (t' `IOLike.diffTime` t) `div` 1000000
+
+    -- nanoseconds from RTS
+    showNsDiff t' t = show $ (t' - t) `div` 1000
 
     (theHeadings, theCells) =
         let infixl `o`
@@ -485,14 +487,15 @@ benchmarkLedgerOps
               ( heading : headings
               , \(ts, t') ->
                   let (cells, t) = acc ts
-                  in (showTimeDiff t' t : cells, t')
+--                  in (showTimeDiff t' t : cells, t')
+                  in (showNsDiff t' t : cells, t')
               )
-            acc0 (                                 rp :& slotGap :& whole :&    majGcCount :&    gc_us, t0) =
-                ( reverse [condense (realPointSlot rp),  slotGap,   whole, show majGcCount, show gc_us]
-                , t0
+            acc0 (                                 rp :& slotGap :& both :& mut :& gc :& majGcCount, t') =
+                ( reverse [condense (realPointSlot rp),  slotGap,   both,   mut,   gc,   majGcCount]
+                , t'
                 )
         in
-        (reverse [                              "slot", "slotGap", "whole",    "majGcCount",    "gc"], acc0)
+        (reverse [                              "slot", "slotGap", "both", "mut", "gc", "majGcCount"], acc0)
           `o` "forecast"
           `o` "headerTick"
           `o` "headerApply"
@@ -505,11 +508,11 @@ benchmarkLedgerOps
         Slotting.At (SlotNo j) -> i - j
 
     process :: St blk -> blk -> IO (St blk)
-    process (St prevt5 prevRtsStats extLdgrSt) blk = do
+    process (St prevRtsStats extLdgrSt) blk = do
         let slot = blockSlot      blk
             rp   = blockRealPoint blk
 
-        t0 <- IOLike.getMonotonicTime
+        t0 <- GC.mutator_elapsed_ns <$> GC.getRTSStats
 
         -- forecast the LedgerView
         let forecaster = ledgerViewForecastAt lcfg (ledgerState extLdgrSt)
@@ -517,40 +520,47 @@ benchmarkLedgerOps
             Left err -> fail $ "benchmark doesn't support headers beyond the forecast limit: " <> show rp <> " " <> show err
             Right !x -> pure x
 
-        t1 <- IOLike.getMonotonicTime
+        t1 <- GC.mutator_elapsed_ns <$> GC.getRTSStats
 
         -- tick the HeaderState
         let !tickedHeaderState = tickHeaderState ccfg tickedLedgerView slot (headerState extLdgrSt)
 
-        t2 <- IOLike.getMonotonicTime
+        t2 <- GC.mutator_elapsed_ns <$> GC.getRTSStats
 
         -- apply the header
         !headerState' <- case runExcept $ validateHeader cfg tickedLedgerView (getHeader blk) tickedHeaderState of
             Left err -> fail $ "benchmark doesn't support invalid headers: " <> show rp <> " " <> show err
             Right x -> pure x
 
-        t3 <- IOLike.getMonotonicTime
+        t3 <- GC.mutator_elapsed_ns <$> GC.getRTSStats
 
         -- tick the ledger state
         let !tickedLdgrSt = applyChainTick lcfg slot (ledgerState extLdgrSt)
 
-        t4 <- IOLike.getMonotonicTime
+        t4 <- GC.mutator_elapsed_ns <$> GC.getRTSStats
 
         -- apply the block
         !ldgrSt' <- case runExcept (lrResult <$> applyBlockLedgerResult lcfg blk tickedLdgrSt) of
             Left err -> fail $ "benchmark doesn't support invalid blocks: " <> show rp <> " " <> show err
             Right x -> pure x
 
-        t5 <- IOLike.getMonotonicTime
-
-        rtsStats <- GC.getRTSStats
+        rtsStats5 <- GC.getRTSStats
+        let t5 = GC.mutator_elapsed_ns rtsStats5
 
         putStrLn
           $ unwords
-          $ reverse (fst $ theCells $ rp :& (slot `slotCount` getTipSlot extLdgrSt) :& showTimeDiff t5 prevt5 :& ((GC.gc_elapsed_ns rtsStats - GC.gc_elapsed_ns prevRtsStats) `div` 1000) :& (GC.major_gcs rtsStats - GC.major_gcs prevRtsStats) :& t0 :& t1 :& t2 :& t3 :& t4 :& t5)
+          $ reverse (fst $ theCells $
+                           rp
+                        :& (slot `slotCount` getTipSlot extLdgrSt)
+                        :& showNsDiff (GC.elapsed_ns rtsStats5) (GC.elapsed_ns prevRtsStats)
+                        :& showNsDiff t5 (GC.mutator_elapsed_ns prevRtsStats)
+                        :& showNsDiff (GC.gc_elapsed_ns rtsStats5) (GC.gc_elapsed_ns prevRtsStats)
+                        :& show (GC.major_gcs rtsStats5 - GC.major_gcs prevRtsStats)
+                        :& t0 :& t1 :& t2 :& t3 :& t4 :& t5
+                    )
             ++ HasAnalysis.blockStats blk
 
-        pure $ St t5 rtsStats $ ExtLedgerState ldgrSt' headerState'
+        pure $ St rtsStats5 $ ExtLedgerState ldgrSt' headerState'
 
 {-------------------------------------------------------------------------------
   Analysis: reforge the blocks, via the mempool
