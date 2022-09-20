@@ -18,6 +18,7 @@ module Ouroboros.Network.PeerSelection.LedgerPeers
   , accPoolStake
   , withLedgerPeers
   , UseLedgerAfter (..)
+  , LedgerPeer (..)
   , Socket.PortNumber
   ) where
 
@@ -44,9 +45,8 @@ import qualified Network.Socket as Socket
 import           System.Random
 
 import           Cardano.Slotting.Slot (SlotNo)
-import           Ouroboros.Network.PeerSelection.RootPeersDNS
+import           Ouroboros.Network.PeerSelection.RelayAccessPoint
                      (DomainAccessPoint (..), RelayAccessPoint (..))
-
 import           Text.Printf
 
 -- | Only use the ledger after the given slot number.
@@ -55,6 +55,10 @@ data UseLedgerAfter = DontUseLedger | UseLedgerAfter SlotNo deriving (Eq, Show)
 isLedgerPeersEnabled :: UseLedgerAfter -> Bool
 isLedgerPeersEnabled DontUseLedger = False
 isLedgerPeersEnabled _             = True
+
+-- | Identifies a peer as coming from ledger or not
+data LedgerPeer = IsLedgerPeer | IsNotLedgerPeer
+  deriving (Eq, Show)
 
 newtype NumberOfPeers = NumberOfPeers Word16 deriving Show
 

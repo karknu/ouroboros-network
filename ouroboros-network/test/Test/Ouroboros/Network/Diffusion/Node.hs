@@ -76,7 +76,8 @@ import           Ouroboros.Network.PeerSelection.PeerMetric
 import           Ouroboros.Network.PeerSelection.RootPeersDNS
                      (DomainAccessPoint (..), LookupReqs (..),
                      RelayAccessPoint (..))
-import           Ouroboros.Network.PeerSelection.Types (PeerAdvertise (..))
+import           Ouroboros.Network.PeerSelection.Types (PeerAdvertise (..),
+                     PeerSharing (..))
 import           Ouroboros.Network.Protocol.Handshake (HandshakeArguments (..))
 import           Ouroboros.Network.Protocol.Handshake.Codec
                      (VersionDataCodec (..), noTimeLimitsHandshake,
@@ -131,7 +132,8 @@ data Arguments m = Arguments
 
     , aPeerSelectionTargets :: PeerSelectionTargets
     , aReadLocalRootPeers   :: STM m [(Int, Map RelayAccessPoint PeerAdvertise)]
-    , aReadPublicRootPeers  :: STM m [RelayAccessPoint]
+    , aReadPublicRootPeers  :: STM m (Map RelayAccessPoint PeerAdvertise)
+    , aPeerSharing          :: PeerSharing
     , aReadUseLedgerAfter   :: STM m UseLedgerAfter
     , aProtocolIdleTimeout  :: DiffTime
     , aTimeWaitTimeout      :: DiffTime
@@ -358,6 +360,7 @@ run _debugTracer blockGeneratorArgs limits ni na tracersExtra =
       { Diff.P2P.daPeerSelectionTargets  = aPeerSelectionTargets na
       , Diff.P2P.daReadLocalRootPeers    = aReadLocalRootPeers na
       , Diff.P2P.daReadPublicRootPeers   = aReadPublicRootPeers na
+      , Diff.P2P.daPeerSharing           = aPeerSharing na
       , Diff.P2P.daReadUseLedgerAfter    = aReadUseLedgerAfter na
       , Diff.P2P.daProtocolIdleTimeout   = aProtocolIdleTimeout na
       , Diff.P2P.daTimeWaitTimeout       = aTimeWaitTimeout na
@@ -373,6 +376,7 @@ run _debugTracer blockGeneratorArgs limits ni na tracersExtra =
       , Node.aaDiffusionMode            = aDiffusionMode na
       , Node.aaKeepAliveInterval        = aKeepAliveInterval na
       , Node.aaPingPongInterval         = aPingPongInterval na
+      , Node.aaPeerSharing              = aPeerSharing na
       }
 
 --- Utils

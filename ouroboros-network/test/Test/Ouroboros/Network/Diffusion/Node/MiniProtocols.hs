@@ -83,6 +83,7 @@ import           Network.TypedProtocol
 
 import qualified Pipes
 
+import qualified Ouroboros.Network.PeerSelection.Types as PSTypes
 import           Test.Ouroboros.Network.Diffusion.Node.NodeKernel
 
 
@@ -170,6 +171,8 @@ data AppArgs m = AppArgs
      :: DiffTime
   , aaPingPongInterval
      :: DiffTime
+  , aaPeerSharing
+     :: PSTypes.PeerSharing
   }
 
 

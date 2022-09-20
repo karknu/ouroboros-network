@@ -106,6 +106,7 @@ import           Ouroboros.Network.PeerSelection.RootPeersDNS (DNSActions,
                      TraceLocalRootPeers (..), TracePublicRootPeers (..),
                      ioDNSActions, resolveDomainAccessPoint)
 import           Ouroboros.Network.PeerSelection.Simple
+import           Ouroboros.Network.PeerSelection.Types (PeerSharing)
 import           Ouroboros.Network.RethrowPolicy
 import           Ouroboros.Network.Server2 (ServerArguments (..),
                      ServerControlChannel, ServerTrace (..))
@@ -210,7 +211,8 @@ data ArgumentsExtra m = ArgumentsExtra {
       daPeerSelectionTargets :: PeerSelectionTargets
 
     , daReadLocalRootPeers  :: STM m [(Int, Map RelayAccessPoint PeerAdvertise)]
-    , daReadPublicRootPeers :: STM m [RelayAccessPoint]
+    , daReadPublicRootPeers :: STM m (Map RelayAccessPoint PeerAdvertise)
+    , daPeerSharing         :: PeerSharing
     , daReadUseLedgerAfter  :: STM m UseLedgerAfter
 
       -- | Timeout which starts once all responder protocols are idle. If the
@@ -631,6 +633,7 @@ runM Interfaces
        { daPeerSelectionTargets
        , daReadLocalRootPeers
        , daReadPublicRootPeers
+       , daPeerSharing
        , daReadUseLedgerAfter
        , daProtocolIdleTimeout
        , daTimeWaitTimeout
@@ -890,6 +893,7 @@ runM Interfaces
                       (readTVar peerSelectionTargetsVar)
                       daReadLocalRootPeers
                       daReadPublicRootPeers
+                      daPeerSharing
                       peerStateActions
                       requestLedgerPeers
                       $ \localPeerSelectionActionsThread
@@ -1014,6 +1018,7 @@ runM Interfaces
                       (readTVar peerSelectionTargetsVar)
                       daReadLocalRootPeers
                       daReadPublicRootPeers
+                      daPeerSharing
                       peerStateActions
                       requestLedgerPeers
                       $ \localPeerRootProviderThread

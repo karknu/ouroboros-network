@@ -1663,7 +1663,7 @@ async_demotion_network_script =
     common = NodeArgs {
         naSeed             = 10,
         naMbTime           = Just 1,
-        naRelays           = [],
+        naRelays           = Map.empty,
         naDomainMap        = Map.empty,
         naAddr             = undefined,
         naLocalRootPeers   = undefined,
@@ -1671,7 +1671,8 @@ async_demotion_network_script =
                            = Governor.PeerSelectionTargets 0 1 1 1,
         naDNSTimeoutScript = singletonScript (DNSTimeout 3),
         naDNSLookupDelayScript
-                           = singletonScript (DNSLookupDelay 0.2)
+                           = singletonScript (DNSLookupDelay 0.2),
+        naPeerSharing      = NoPeerSharing
       }
 
 
