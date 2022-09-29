@@ -56,6 +56,8 @@ withPeerSelectionActions
   -- ^ public root peers
   -> PeerSharing
   -- ^ peer sharing configured value
+  -> (peerconn -> PeerSharing)
+  -- ^ Extract peer sharing information from peerconn
   -> PeerStateActions peeraddr peerconn m
   -> (NumberOfPeers -> m (Maybe (Set peeraddr, DiffTime)))
   -> (   Async m Void
@@ -73,6 +75,7 @@ withPeerSelectionActions
   readLocalRootPeers
   readPublicRootPeers
   peerSharing
+  peerConnToPeerSharing
   peerStateActions
   getLedgerPeers
   k = do
@@ -81,6 +84,7 @@ withPeerSelectionActions
             readPeerSelectionTargets = readTargets,
             readLocalRootPeers = toList <$> readTVar localRootsVar,
             peerSharing,
+            peerConnToPeerSharing,
             requestPublicRootPeers = requestPublicRootPeers,
             requestPeerShare = \_ -> pure [],
             peerStateActions

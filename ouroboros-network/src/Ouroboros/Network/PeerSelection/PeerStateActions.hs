@@ -17,6 +17,7 @@ module Ouroboros.Network.PeerSelection.PeerStateActions
     PeerStateActionsArguments (..)
   , PeerConnectionHandle
   , withPeerStateActions
+  , pchPeerSharing
     -- * Exceptions
   , PeerSelectionActionException (..)
   , EstablishConnectionException (..)
@@ -53,7 +54,8 @@ import           Ouroboros.Network.ExitPolicy
 import           Ouroboros.Network.Mux
 import           Ouroboros.Network.PeerSelection.Governor
                      (PeerStateActions (..))
-import           Ouroboros.Network.PeerSelection.Types (PeerStatus (..))
+import           Ouroboros.Network.PeerSelection.Types (PeerSharing,
+                     PeerStatus (..))
 import           Ouroboros.Network.Protocol.Handshake (HandshakeException)
 
 import           Ouroboros.Network.ConnectionHandler (Handle (..),
@@ -412,6 +414,11 @@ instance (Show peerAddr, Show versionData)
       => Show (PeerConnectionHandle muxMode peerAddr versionData bytes m a b) where
     show PeerConnectionHandle { pchConnectionId, pchVersionData } =
       "PeerConnectionHandle " ++ show pchConnectionId ++ " " ++ show pchVersionData
+
+pchPeerSharing :: (versionData -> PeerSharing)
+               -> PeerConnectionHandle muxMode peerAddr versionData bytes m a b
+               -> PeerSharing
+pchPeerSharing f = f . pchVersionData
 
 --
 -- Exceptions
