@@ -496,7 +496,7 @@ computeMempoolCapacity st = \case
 
 -- | The result of attempting to add a transaction to the mempool.
 data MempoolAddTxResult blk
-  = MempoolTxAdded !(Validated (GenTx blk))
+  = MempoolTxAdded !(TxTicket (Validated (GenTx blk)))
     -- ^ The transaction was added to the mempool.
   | MempoolTxRejected !(GenTx blk) !(ApplyTxErr blk)
     -- ^ The transaction was rejected and could not be added to the mempool
@@ -506,7 +506,7 @@ deriving instance (Eq (GenTx blk), Eq (Validated (GenTx blk)), Eq (ApplyTxErr bl
 deriving instance (Show (GenTx blk), Show (Validated (GenTx blk)), Show (ApplyTxErr blk)) => Show (MempoolAddTxResult blk)
 
 mempoolTxAddedToMaybe :: MempoolAddTxResult blk -> Maybe (Validated (GenTx blk))
-mempoolTxAddedToMaybe (MempoolTxAdded vtx) = Just vtx
+mempoolTxAddedToMaybe (MempoolTxAdded vtx) = Just $ txTicketTx vtx
 mempoolTxAddedToMaybe _                    = Nothing
 
 isMempoolTxAdded :: MempoolAddTxResult blk -> Bool
@@ -591,7 +591,7 @@ deriving instance ( Show (GenTx blk)
 data MempoolSnapshot blk idx = MempoolSnapshot {
     -- | Get all transactions (oldest to newest) in the mempool snapshot along
     -- with their ticket number.
-    snapshotTxs         :: [(Validated (GenTx blk), idx)]
+    snapshotTxs         :: TxSeq (Validated (GenTx blk))
 
     -- | Get all transactions (oldest to newest) in the mempool snapshot,
     -- along with their ticket number, which are associated with a ticket

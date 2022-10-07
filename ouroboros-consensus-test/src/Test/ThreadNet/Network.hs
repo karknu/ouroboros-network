@@ -86,6 +86,7 @@ import           Ouroboros.Consensus.Ledger.Inspect
 import           Ouroboros.Consensus.Ledger.SupportsMempool
 import           Ouroboros.Consensus.Ledger.SupportsProtocol
 import           Ouroboros.Consensus.Mempool
+import qualified Ouroboros.Consensus.Mempool.TxSeq as TxSeq
 import qualified Ouroboros.Consensus.MiniProtocol.ChainSync.Client as CSClient
 import qualified Ouroboros.Consensus.Network.NodeToNode as NTN
 import           Ouroboros.Consensus.Node.ExitPolicy
@@ -601,7 +602,7 @@ runThreadNetwork systemTime ThreadNetworkArgs
       -> (SlotNo -> STM m ())
       -> LedgerConfig blk
       -> STM m (LedgerState blk EmptyMK)
-      -> Mempool m blk TicketNo
+      -> Mempool m blk
       -> [GenTx blk]
          -- ^ valid transactions the node should immediately propagate
       -> m ()
@@ -630,7 +631,7 @@ runThreadNetwork systemTime ThreadNetworkArgs
                 -- a new tx (e.g. added by TxSubmission) might render a crucial
                 -- transaction valid
                 mempChanged = do
-                  let getMemp = (map snd . snapshotTxs) <$> getSnapshot mempool
+                  let getMemp = (map TxSeq.txTicketNo . TxSeq.toList . snapshotTxs) <$> getSnapshot mempool
                   (mempFp', _) <- atomically $ blockUntilChanged id mempFp getMemp
                   pure (slot, ledger, mempFp')
 
@@ -665,7 +666,7 @@ runThreadNetwork systemTime ThreadNetworkArgs
                    -> Seed
                    -> DiskLedgerView m (ExtLedgerState blk)
                       -- ^ How to get the current ledger state
-                   -> Mempool m blk TicketNo
+                   -> Mempool m blk
                    -> m ()
     forkTxProducer coreNodeId registry clock cfg nodeSeed dlv mempool =
         void $ OracularClock.forkEachSlot registry clock "txProducer" $ \curSlotNo -> do

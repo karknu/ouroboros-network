@@ -148,6 +148,7 @@ module Ouroboros.Consensus.Storage.LedgerDB.OnDisk (
   , newBackingStore
   , replayStartingWith
   , restoreBackingStore
+  , createTVarBackingStore
   , streamAll
   ) where
 
@@ -529,15 +530,26 @@ newBackingStore ::
   -> SomeHasFS m
   -> LedgerTables l ValuesMK
   -> m (LedgerBackingStore m l)
-newBackingStore tracer bss someHasFS tables = do
-  store <- case bss of
+newBackingStore tracer bss someHasFS tables =
+  case bss of
     LMDBBackingStore limits ->
-      LMDB.newLMDBBackingStore
+      LedgerBackingStore <$> LMDB.newLMDBBackingStore
       tracer
       limits
       someHasFS
       (LMDB.LIInitialiseFromMemory Origin tables)
-    InMemoryBackingStore -> BackingStore.newTVarBackingStore
+    InMemoryBackingStore -> createTVarBackingStore Origin tables
+
+createTVarBackingStore ::
+  ( IOLike m
+  , NoThunks (LedgerTables l ValuesMK)
+  , TableStuff l
+  , SufficientSerializationForAnyBackingStore l)
+  => WithOrigin SlotNo
+  -> LedgerTables l ValuesMK
+  -> m (LedgerBackingStore m l)
+createTVarBackingStore sl tables =
+  LedgerBackingStore <$> BackingStore.newTVarBackingStore
                (zipLedgerTables lookup_)
                (\rq values -> case BackingStore.rqPrev rq of
                    Nothing   ->
@@ -548,8 +560,7 @@ newBackingStore tracer bss someHasFS tables = do
                (zipLedgerTables applyDiff_)
                valuesMKEncoder
                valuesMKDecoder
-               (Right (Origin, tables))
-  pure (LedgerBackingStore store)
+               (Right (sl, tables))
 
 lookup_ ::
      Ord k

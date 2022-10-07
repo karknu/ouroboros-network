@@ -32,8 +32,7 @@ import           Ouroboros.Network.Block
 import           Ouroboros.Consensus.Ledger.Abstract
 import           Ouroboros.Consensus.Ledger.SupportsMempool
 import           Ouroboros.Consensus.Mempool.Impl.Types
-import           Ouroboros.Consensus.Mempool.TxSeq (TicketNo, TxTicket (..),
-                     zeroTicketNo)
+import           Ouroboros.Consensus.Mempool.TxSeq (TicketNo, TxTicket (..))
 import qualified Ouroboros.Consensus.Mempool.TxSeq as TxSeq
 
 import           Ouroboros.Network.Protocol.TxSubmission2.Type (TxSizeInBytes)
@@ -79,7 +78,8 @@ pureTryAddTxs
 pureTryAddTxs cfg txSize wti tx is values
   | let size    = txSize tx
         curSize = msNumBytes  $ isMempoolSize is
-  , curSize + size > getMempoolCapacityBytes (isCapacity is)
+        cap = getMempoolCapacityBytes (isCapacity is)
+  , curSize + size > cap
   = NoSpaceLeft
   | otherwise
   = case eVtx of
@@ -89,7 +89,7 @@ pureTryAddTxs cfg txSize wti tx is values
         assert (isJust (vrNewValid vr)) $
           TryAddTxs
             (Just is')
-            (MempoolTxAdded vtx)
+            (MempoolTxAdded $ TxTicket vtx (vrLastTicketNo vr) (txSize tx))
             (TraceMempoolAddedTx
               vtx
               (isMempoolSize is)
@@ -227,7 +227,7 @@ implSnapshotFromIS
   => InternalState blk
   -> MempoolSnapshot blk TicketNo
 implSnapshotFromIS is = MempoolSnapshot {
-      snapshotTxs         = implSnapshotGetTxs         is
+      snapshotTxs         = isTxs                      is
     , snapshotTxsAfter    = implSnapshotGetTxsAfter    is
     , snapshotLookupTx    = implSnapshotGetTx          is
     , snapshotHasTx       = implSnapshotHasTx          is
@@ -236,9 +236,6 @@ implSnapshotFromIS is = MempoolSnapshot {
     , snapshotTipHash     = isTip                      is
     }
  where
-  implSnapshotGetTxs :: InternalState blk
-                     -> [(Validated (GenTx blk), TicketNo)]
-  implSnapshotGetTxs = flip implSnapshotGetTxsAfter zeroTicketNo
 
   implSnapshotGetTxsAfter :: InternalState blk
                           -> TicketNo

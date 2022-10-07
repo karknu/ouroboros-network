@@ -33,10 +33,10 @@ import qualified Data.List.NonEmpty as NE
 
 import           Ouroboros.Network.Protocol.TxSubmission2.Type (TxSizeInBytes)
 
-import           Ouroboros.Consensus.Block (SlotNo)
 import           Ouroboros.Consensus.Ledger.Abstract
 import           Ouroboros.Consensus.Ledger.SupportsMempool
 import           Ouroboros.Consensus.Mempool.Impl.Types
+import           Ouroboros.Consensus.Mempool.TxSeq (TicketNo)
 import           Ouroboros.Consensus.Util.IOLike
 
 {-------------------------------------------------------------------------------
@@ -92,7 +92,7 @@ import           Ouroboros.Consensus.Util.IOLike
 --
 -- This shows that @'tryAddTxs' wti@ is an homomorphism from '++' and '>>',
 -- which informally makes these operations "distributive".
-data Mempool m blk idx = Mempool {
+data Mempool m blk = Mempool {
       -- | Add a bunch of transactions (oldest to newest)
       --
       -- As long as we keep the mempool entirely in-memory this could live in
@@ -184,14 +184,14 @@ data Mempool m blk idx = Mempool {
       -- n.b. in our current implementation, when one opens a mempool, we
       -- spawn a thread which performs this action whenever the 'ChainDB' tip
       -- point changes.
-    , syncWithLedger :: m (MempoolSnapshot blk idx)
+    , syncWithLedger :: m (MempoolSnapshot blk TicketNo)
 
       -- | Get a snapshot of the current mempool state. This allows for
       -- further pure queries on the snapshot.
       --
       -- This doesn't look at the ledger state at all, i.e. it produces a
       -- snapshot from the current InternalState of the mempool.
-    , getSnapshot    :: STM m (MempoolSnapshot blk idx)
+    , getSnapshot    :: STM m (MempoolSnapshot blk TicketNo)
 
       -- | Get a snapshot of the mempool state that is valid with respect to
       -- the given ticked ledger state.
@@ -199,10 +199,9 @@ data Mempool m blk idx = Mempool {
       -- This does not update the internal state of the mempool.
       --
     , getSnapshotFor ::
-           SlotNo
-        -> TickedLedgerState blk DiffMK
+           TickedLedgerState blk DiffMK
         -> MempoolChangelog blk
-        -> m (MempoolSnapshot blk idx)
+        -> m (Maybe (MempoolSnapshot blk TicketNo))
 
       -- | Get the mempool's capacity in bytes.
       --
@@ -230,8 +229,8 @@ data Mempool m blk idx = Mempool {
 --
 -- See the necessary invariants on the Haddock for 'tryAddTxs'.
 addTxs
-  :: forall m blk idx. MonadSTM m
-  => Mempool m blk idx
+  :: forall m blk. MonadSTM m
+  => Mempool m blk
   -> [GenTx blk]
   -> m [MempoolAddTxResult blk]
 addTxs mempool = addTxsHelper mempool DoNotIntervene
@@ -240,16 +239,16 @@ addTxs mempool = addTxsHelper mempool DoNotIntervene
 --
 -- See 'Intervene'.
 addLocalTxs
-  :: forall m blk idx. MonadSTM m
-  => Mempool m blk idx
+  :: forall m blk. MonadSTM m
+  => Mempool m blk
   -> [GenTx blk]
   -> m [MempoolAddTxResult blk]
 addLocalTxs mempool = addTxsHelper mempool Intervene
 
 -- | See 'addTxs'
 addTxsHelper
-  :: forall m blk idx. MonadSTM m
-  => Mempool m blk idx
+  :: forall m blk. MonadSTM m
+  => Mempool m blk
   -> WhetherToIntervene
   -> [GenTx blk]
   -> m [MempoolAddTxResult blk]

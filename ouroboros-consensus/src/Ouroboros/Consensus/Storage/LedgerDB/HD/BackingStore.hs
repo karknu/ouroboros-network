@@ -6,6 +6,7 @@
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE Rank2Types                 #-}
 {-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TupleSections #-}
 
 module Ouroboros.Consensus.Storage.LedgerDB.HD.BackingStore (
     -- * Backing store interface

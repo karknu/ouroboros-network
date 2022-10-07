@@ -34,7 +34,7 @@ import           Data.Hashable (Hashable)
 import           Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NE
 import           Data.Map.Strict (Map)
-import           Data.Maybe (isJust, mapMaybe)
+import           Data.Maybe (isJust, mapMaybe, fromJust)
 import           Data.Proxy
 import qualified Data.Text as Text
 import           System.Random (StdGen)
@@ -75,12 +75,13 @@ import           Ouroboros.Consensus.Util.Orphans ()
 import           Ouroboros.Consensus.Util.ResourceRegistry
 import           Ouroboros.Consensus.Util.STM
 
-import           Ouroboros.Consensus.Mempool.TxSeq (zeroTicketNo)
+import           Ouroboros.Consensus.Mempool.TxSeq (zeroTicketNo, txTicketTx)
 import           Ouroboros.Consensus.Storage.ChainDB.API (ChainDB)
 import qualified Ouroboros.Consensus.Storage.ChainDB.API as ChainDB
 import qualified Ouroboros.Consensus.Storage.ChainDB.API.Types.InvalidBlockPunishment as InvalidBlockPunishment
 import           Ouroboros.Consensus.Storage.ChainDB.Init (InitChainDB)
 import qualified Ouroboros.Consensus.Storage.ChainDB.Init as InitChainDB
+import qualified Ouroboros.Consensus.Mempool.TxSeq as TxSeq
 
 {-------------------------------------------------------------------------------
   Relay node
@@ -92,7 +93,7 @@ data NodeKernel m remotePeer localPeer blk = NodeKernel {
       getChainDB             :: ChainDB m blk
 
       -- | The node's mempool
-    , getMempool             :: Mempool m blk TicketNo
+    , getMempool             :: Mempool m blk
 
       -- | The node's top-level static configuration
     , getTopLevelConfig      :: TopLevelConfig blk
@@ -184,7 +185,7 @@ data InternalState m remotePeer localPeer blk = IS {
     , blockFetchInterface :: BlockFetchConsensusInterface remotePeer (Header blk) blk m
     , fetchClientRegistry :: FetchClientRegistry remotePeer (Header blk) blk m
     , varCandidates       :: StrictTVar m (Map remotePeer (StrictTVar m (AnchoredFragment (Header blk))))
-    , mempool             :: Mempool m blk TicketNo
+    , mempool             :: Mempool m blk
     }
 
 initInternalState
@@ -397,11 +398,10 @@ forkBlockForging IS{..} blockForging =
 
           mempoolSnapshot <- lift $ getSnapshotFor
                              mempool
-                             currentSlot
                              tickedLedgerState
                              dbch
 
-          pure ( mempoolSnapshot
+          pure ( fromJust mempoolSnapshot -- We can do this because we have the read lock
                , bcPrevPoint
                , mempoolHash
                , mempoolSlotNo
@@ -422,7 +422,7 @@ forkBlockForging IS{..} blockForging =
                , proof
                , unticked
                ) -> withEarlyExit_ $ do
-            let txs = map fst $ snapshotTxs mempoolSnapshot
+            let txs = map txTicketTx $ TxSeq.toList $ snapshotTxs mempoolSnapshot
             -- force the mempool's computation before the tracer event
             _ <- evaluate (length txs)
             trace $ TraceForgingMempoolSnapshot currentSlot bcPrevPoint mempoolHash mempoolSlotNo
@@ -587,7 +587,7 @@ getMempoolReader
      , IOLike m
      , HasTxId (GenTx blk)
      )
-  => Mempool m blk TicketNo
+  => Mempool m blk
   -> TxSubmissionMempoolReader (GenTxId blk) (Validated (GenTx blk)) TicketNo m
 getMempoolReader mempool = MempoolReader.TxSubmissionMempoolReader
     { mempoolZeroIdx     = zeroTicketNo
@@ -613,7 +613,7 @@ getMempoolWriter
      , IOLike m
      , HasTxId (GenTx blk)
      )
-  => Mempool m blk TicketNo
+  => Mempool m blk
   -> TxSubmissionMempoolWriter (GenTxId blk) (GenTx blk) TicketNo m
 getMempoolWriter mempool = Inbound.TxSubmissionMempoolWriter
     { Inbound.txId          = txId

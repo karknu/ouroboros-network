@@ -5,23 +5,26 @@
 
 module Ouroboros.Consensus.MiniProtocol.LocalTxMonitor.Server (localTxMonitorServer) where
 
+import           Control.Arrow ((&&&))
+import           Data.Function (on)
+
 import           Ouroboros.Network.Protocol.LocalTxMonitor.Server
 import           Ouroboros.Network.Protocol.LocalTxMonitor.Type
 
 import           Ouroboros.Consensus.Block
 import           Ouroboros.Consensus.Ledger.SupportsMempool
 import           Ouroboros.Consensus.Mempool.API
+import qualified Ouroboros.Consensus.Mempool.TxSeq as TxSeq
 import           Ouroboros.Consensus.Util.IOLike
 
 -- | Local transaction monitoring server, for inspecting the mempool.
 --
 localTxMonitorServer ::
-     forall blk idx m.
+     forall blk m.
      ( MonadSTM m
      , LedgerSupportsMempool blk
-     , Eq idx
      )
-  => Mempool m blk idx
+  => Mempool m blk
   -> LocalTxMonitorServer (GenTxId blk) (GenTx blk) SlotNo m ()
 localTxMonitorServer mempool =
     LocalTxMonitorServer (pure serverStIdle)
@@ -38,14 +41,14 @@ localTxMonitorServer mempool =
       }
 
     serverStAcquiring
-      :: (MempoolCapacityBytes, MempoolSnapshot blk idx)
+      :: (MempoolCapacityBytes, MempoolSnapshot blk TxSeq.TicketNo)
       -> ServerStAcquiring (GenTxId blk) (GenTx blk) SlotNo m ()
     serverStAcquiring s@(_, snapshot) =
-      SendMsgAcquired (snapshotSlotNo snapshot) (serverStAcquired s (snapshotTxs snapshot))
+      SendMsgAcquired (snapshotSlotNo snapshot) (serverStAcquired s (map (TxSeq.txTicketTx &&& TxSeq.txTicketNo) $ TxSeq.toList $ snapshotTxs snapshot))
 
     serverStAcquired
-      :: (MempoolCapacityBytes, MempoolSnapshot blk idx)
-      -> [(Validated (GenTx blk), idx)]
+      :: (MempoolCapacityBytes, MempoolSnapshot blk TxSeq.TicketNo)
+      -> [(Validated (GenTx blk), TxSeq.TicketNo)]
       -> ServerStAcquired (GenTxId blk) (GenTx blk) SlotNo m ()
     serverStAcquired s@(capacity, snapshot) txs =
       ServerStAcquired
@@ -76,10 +79,10 @@ localTxMonitorServer mempool =
 
     -- Are two snapshots equal? (from the perspective of this protocol)
     isSameSnapshot
-      :: MempoolSnapshot blk idx
-      -> MempoolSnapshot blk idx
+      :: MempoolSnapshot blk TxSeq.TicketNo
+      -> MempoolSnapshot blk TxSeq.TicketNo
       -> Bool
     isSameSnapshot a b =
-      (snd <$> snapshotTxs a) == (snd <$> snapshotTxs b)
+      (on (==) (map TxSeq.txTicketNo . TxSeq.toList . snapshotTxs) a b)
       &&
       snapshotSlotNo a == snapshotSlotNo b

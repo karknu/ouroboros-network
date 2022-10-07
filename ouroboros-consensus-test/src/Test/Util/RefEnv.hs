@@ -3,6 +3,8 @@
 {-# LANGUAGE PolyKinds           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Test.Util.RefEnv (
     RefEnv
@@ -34,7 +36,9 @@ import           Test.StateMachine (Reference)
 import qualified Test.StateMachine.Types.Rank2 as Rank2
 
 data RefEnv k a r = RefEnv { toList :: [(Reference k r, a)] }
-  deriving (Generic, ToExpr, Show)
+  deriving (Generic, ToExpr)
+
+deriving instance (Show a, Show (Reference k r)) => Show (RefEnv k a r)
 
 -- | Extend mapping
 --
