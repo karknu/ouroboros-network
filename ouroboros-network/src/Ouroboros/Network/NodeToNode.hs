@@ -6,6 +6,7 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies        #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- | This is the starting point for a module that will bring together the
 -- overall node to node protocol, as a collection of mini-protocols.
@@ -109,11 +110,14 @@ import           Data.Void (Void)
 import           Data.Word
 import           Network.Mux (WithMuxBearer (..))
 import           Network.Mux.Types (MuxRuntimeError (..))
-import           Network.Socket (Socket)
+import           Network.Socket (PortNumber, SockAddr (..), Socket)
 import qualified Network.Socket as Socket
 
-import           Network.TypedProtocol.Codec.CBOR
+import           Network.TypedProtocol.Codec.CBOR hiding (decode, encode)
 
+import qualified Codec.CBOR.Decoding as CBOR
+import qualified Codec.CBOR.Encoding as CBOR
+import           Codec.Serialise.Class (Serialise (..))
 import           Ouroboros.Network.BlockFetch.Client (BlockFetchProtocolFailure)
 import           Ouroboros.Network.ConnectionManager.Types
                      (ExceptionInHandler (..))
@@ -147,6 +151,7 @@ import           Ouroboros.Network.Subscription.Worker (LocalAddresses (..),
 import           Ouroboros.Network.Tracers
 import qualified Ouroboros.Network.TxSubmission.Inbound as TxInbound
 import qualified Ouroboros.Network.TxSubmission.Outbound as TxOutbound
+import           Ouroboros.Network.Util.ShowProxy (ShowProxy, showProxy)
 
 
 -- The Handshake tracer types are simply terrible.
@@ -687,4 +692,59 @@ localNetworkErrorPolicy = ErrorPolicies {
     }
 
 type RemoteAddress      = Socket.SockAddr
+
+instance ShowProxy RemoteAddress where
+  showProxy _ = "SockAddr"
+
+instance Serialise PortNumber where
+  encode = CBOR.encodeWord16 . fromIntegral
+  decode = fromIntegral <$> CBOR.decodeWord16
+
+instance Serialise RemoteAddress where
+  encode (SockAddrInet pn w) = CBOR.encodeListLen 2
+                             <> CBOR.encodeListLen 2
+                             <> CBOR.encodeWord 0
+                             <> encode w
+                             <> encode pn
+  encode (SockAddrInet6 pn fi (w1, w2, w3, w4) si) = CBOR.encodeListLen 2
+                                                  <> CBOR.encodeListLen 7
+                                                  <> CBOR.encodeWord 1
+                                                  <> encode w1
+                                                  <> encode w2
+                                                  <> encode w3
+                                                  <> encode w4
+                                                  <> encode fi
+                                                  <> encode si
+                                                  <> encode pn
+  encode (SockAddrUnix s) = CBOR.encodeListLen 2
+                         <> CBOR.encodeWord 2
+                         <> encode s
+  decode = do
+    _ <- CBOR.decodeListLen
+    tok <- CBOR.peekTokenType
+    case tok of
+      CBOR.TypeListLen -> do
+        len <- CBOR.decodeListLen
+        case len of
+          2 -> do
+            _ <- CBOR.decodeWord
+            w <- decode
+            pn <- decode
+            return (SockAddrInet pn w)
+          7 -> do
+            _ <- CBOR.decodeWord
+            w1 <- decode
+            w2 <- decode
+            w3 <- decode
+            w4 <- decode
+            fi <- decode
+            si <- decode
+            pn <- decode
+            return (SockAddrInet6 pn fi (w1, w2, w3, w4) si)
+          _ -> fail ("Serialise.decode.SockAddr unexpected list length " ++ show len)
+      _ -> do
+        _ <- CBOR.decodeWord
+        s <- decode
+        return (SockAddrUnix s)
+
 type RemoteConnectionId = ConnectionId RemoteAddress

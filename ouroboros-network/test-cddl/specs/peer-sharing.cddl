@@ -1,0 +1,27 @@
+;
+; Peer Sharing MiniProtocol
+;
+
+peerSharingMessage = msgShareRequest
+                   / msgSharePeers
+                   / msgDone
+
+msgShareRequest = [0, byte]
+msgSharePeers   = [1, peerAddresses]
+msgDone         = [2]
+
+peerAddresses = [* peerAddress]
+
+byte = 0..255
+peerAddress = [ip, portNumber]
+
+portNumber = word16
+
+ip = ip4
+   / ip6
+
+ip4 = [0, word32]
+ip6 = [1, word32, word32, word32, word32, flowInfo, scopeId]
+
+flowInfo = word32
+scopeId = word32
