@@ -128,12 +128,19 @@ instance HasProtocolInfo (CardanoBlock StandardCrypto) where
     CardanoConfig {..} <- either (error . show) return =<<
       Aeson.eitherDecodeFileStrict' configFile
 
+    -- The paths to the eras configuration files (eg @byronGenesisPath@) are
+    -- taken from @configFile@. Here we assume these file paths are relative to
+    -- the base directory of @configFile@, which means that we need to prepend
+    -- this base directory to these paths to get the right path for the eras
+    -- configuration files.
+    let prependBaseDir p = FP.takeDirectory configFile </> p
     genesisByron   <-
-      BlockByron.openGenesisByron byronGenesisPath byronGenesisHash requiresNetworkMagic
+      BlockByron.openGenesisByron
+        (prependBaseDir byronGenesisPath) byronGenesisHash requiresNetworkMagic
     genesisShelley <- either (error . show) return =<<
-      Aeson.eitherDecodeFileStrict' shelleyGenesisPath
+      Aeson.eitherDecodeFileStrict' (prependBaseDir shelleyGenesisPath)
     genesisAlonzo  <- either (error . show) return =<<
-      Aeson.eitherDecodeFileStrict' alonzoGenesisPath
+      Aeson.eitherDecodeFileStrict' (prependBaseDir alonzoGenesisPath)
 
     initialNonce <- case shelleyGenesisHash of
       Just h  -> pure h
