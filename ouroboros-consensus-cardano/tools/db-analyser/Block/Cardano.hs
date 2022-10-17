@@ -18,18 +18,6 @@
 
 module Block.Cardano (CardanoBlockArgs) where
 
-import qualified Block.Byron as BlockByron
-import           Block.Shelley ()
-import           Cardano.Binary (Raw)
-import qualified Cardano.Chain.Genesis as Byron.Genesis
-import qualified Cardano.Chain.Update as Byron.Update
-import           Cardano.Crypto (RequiresNetworkMagic (..))
-import qualified Cardano.Crypto as Crypto
-import qualified Cardano.Crypto.Hash.Class as CryptoClass
-import qualified Cardano.Ledger.Alonzo.Genesis as SL (AlonzoGenesis)
-import qualified Cardano.Ledger.Alonzo.Tx (ValidatedTx(..))
-import           Cardano.Ledger.Crypto
-import qualified Cardano.Ledger.Era as Core
 import           Control.Monad (when)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
@@ -39,7 +27,22 @@ import qualified Data.Map.Strict as Map
 import           Data.Maybe (fromJust)
 import           Data.SOP.Strict
 import           Data.Word (Word16)
-import           HasAnalysis
+import           System.FilePath.Posix ((</>))
+import qualified System.FilePath.Posix as FP
+
+import qualified Block.Byron as BlockByron
+import           Block.Shelley ()
+import           Cardano.Binary (Raw)
+import qualified Cardano.Chain.Genesis as Byron.Genesis
+import qualified Cardano.Chain.Update as Byron.Update
+import           Cardano.Crypto (RequiresNetworkMagic (..))
+import qualified Cardano.Crypto as Crypto
+import qualified Cardano.Crypto.Hash.Class as CryptoClass
+import qualified Cardano.Ledger.Alonzo.Genesis as SL (AlonzoGenesis)
+import qualified Cardano.Ledger.Alonzo.Tx (ValidatedTx (..))
+import           Cardano.Ledger.Crypto
+import qualified Cardano.Ledger.Era as Core
+
 import           Ouroboros.Consensus.Block
 import           Ouroboros.Consensus.Byron.Ledger (ByronBlock)
 import           Ouroboros.Consensus.Cardano
@@ -62,6 +65,8 @@ import           Ouroboros.Consensus.Shelley.HFEras ()
 import           Ouroboros.Consensus.Shelley.Ledger.Block (ShelleyBlock)
 import           Ouroboros.Consensus.Shelley.Ledger.SupportsProtocol ()
 import           Ouroboros.Consensus.Shelley.Node.Praos
+
+import           HasAnalysis
 
 analyseBlock ::
      (forall blk. HasAnalysis blk => blk -> a)
