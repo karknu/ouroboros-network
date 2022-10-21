@@ -17,6 +17,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 -- TODO: remove it once #3601 is fixed
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
+{-# LANGUAGE TypeApplications           #-}
 
 module Test.Ouroboros.Network.PeerSelection
   ( tests
@@ -68,7 +69,10 @@ import           Test.Ouroboros.Network.PeerSelection.MockEnvironment hiding
                      (tests)
 import           Test.Ouroboros.Network.PeerSelection.PeerGraph
 
+import           Control.Concurrent.Class.MonadSTM.Strict (newTVarIO)
 import           Ouroboros.Network.PeerSelection.LedgerPeers (LedgerPeer (..))
+import           Ouroboros.Network.Protocol.PeerSharing.Type
+                     (PeerSharingResult (PeerSharingResult))
 import           Test.QuickCheck
 import           Test.Tasty (DependencyType (..), TestTree, after, testGroup)
 import           Test.Tasty.QuickCheck (testProperty)
@@ -2252,12 +2256,13 @@ _governorFindingPublicRoots targetNumberOfRootPeers readDomains peerSharing =
       (curry IP.toSockAddr)
       DNS.defaultResolvConf
       readDomains
-      (ioDNSActions LookupReqAAndAAAA) $ \requestPublicRootPeers ->
-
+      (ioDNSActions LookupReqAAndAAAA) $ \requestPublicRootPeers -> do
+        publicStateVar <- newTVarIO (emptyPublicPeerSelectionState @SockAddr)
         peerSelectionGovernor
           tracer tracer tracer
           -- TODO: #3182 Rng seed should come from quickcheck.
           (mkStdGen 42)
+          publicStateVar
           actions
             { requestPublicRootPeers =
                 transformPeerSelectionAction requestPublicRootPeers }
@@ -2271,7 +2276,7 @@ _governorFindingPublicRoots targetNumberOfRootPeers readDomains peerSharing =
                 readLocalRootPeers       = return [],
                 peerSharing              = peerSharing,
                 readPeerSelectionTargets = return targets,
-                requestPeerShare         = \_ -> return [],
+                requestPeerShare         = \_ _ -> return (PeerSharingResult []),
                 peerConnToPeerSharing    = \_ -> NoPeerSharing,
                 requestPublicRootPeers   = \_ -> return (Map.empty, 0),
                 peerStateActions         = PeerStateActions {

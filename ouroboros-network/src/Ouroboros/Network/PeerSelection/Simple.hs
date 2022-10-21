@@ -29,11 +29,16 @@ import           Data.Void (Void)
 import qualified Network.DNS as DNS
 import qualified Network.Socket as Socket
 
+import           Control.Monad.Class.MonadMVar (MonadMVar (..), takeMVar)
 import           Ouroboros.Network.PeerSelection.Governor.Types
 import           Ouroboros.Network.PeerSelection.LedgerPeers
 import           Ouroboros.Network.PeerSelection.RootPeersDNS
 import           Ouroboros.Network.PeerSelection.Types (PeerAdvertise (..),
                      PeerSharing (..))
+import           Ouroboros.Network.PeerSharing
+                     (PeerSharingController (PeerSharingController))
+import           Ouroboros.Network.Protocol.PeerSharing.Type (PeerSharingAmount,
+                     PeerSharingResult (..))
 
 
 withPeerSelectionActions
@@ -41,6 +46,7 @@ withPeerSelectionActions
      ( MonadAsync m
      , MonadDelay m
      , MonadThrow m
+     , MonadMVar  m
      , Ord peeraddr
      , Exception exception
      , Eq (Async m Void)
@@ -58,6 +64,8 @@ withPeerSelectionActions
   -- ^ peer sharing configured value
   -> (peerconn -> PeerSharing)
   -- ^ Extract peer sharing information from peerconn
+  -> STM m (Map peeraddr (PeerSharingController peeraddr m))
+  -- ^ peer sharing registry
   -> PeerStateActions peeraddr peerconn m
   -> (NumberOfPeers -> m (Maybe (Set peeraddr, DiffTime)))
   -> (   Async m Void
@@ -76,6 +84,7 @@ withPeerSelectionActions
   readPublicRootPeers
   peerSharing
   peerConnToPeerSharing
+  readPeerSharingController
   peerStateActions
   getLedgerPeers
   k = do
@@ -86,7 +95,7 @@ withPeerSelectionActions
             peerSharing,
             peerConnToPeerSharing,
             requestPublicRootPeers = requestPublicRootPeers,
-            requestPeerShare = \_ -> pure [],
+            requestPeerShare = requestPeerShare,
             peerStateActions
           }
     withAsync
@@ -133,3 +142,20 @@ withPeerSelectionActions
                               readPublicRootPeers
                               dnsActions
                               ($ n)
+
+    requestPeerShare :: PeerSharingAmount -> peeraddr -> m (PeerSharingResult peeraddr)
+    requestPeerShare amount peer = do
+      resultQueue <- newEmptyMVar
+      controller <- atomically readPeerSharingController
+      case Map.lookup peer controller of
+        -- Peer Registering happens asynchronously with respect to
+        -- requestPeerShare. This means that there's a possible race where the
+        -- Peer Selection Governor can decide to peer share request to a peer
+        -- for the peer is registered. When this happens this map lookup is
+        -- going to fail, so instead of erroring we report this to the governor
+        -- so it can deal with this particular case accordingly.
+        Nothing -> return PeerSharingNotRegisteredYet
+        Just (PeerSharingController requestQueue) -> do
+          putMVar requestQueue (amount, resultQueue)
+          result <- takeMVar resultQueue
+          return (PeerSharingResult result)

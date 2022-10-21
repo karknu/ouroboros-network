@@ -38,6 +38,7 @@ import           Data.Void (Void)
 import           System.Random (mkStdGen)
 
 import           Control.Concurrent.Class.MonadSTM
+import qualified Control.Concurrent.Class.MonadSTM.Strict as StrictTVar
 import           Control.Exception (throw)
 import           Control.Monad.Class.MonadAsync
 import           Control.Monad.Class.MonadFork
@@ -71,6 +72,8 @@ import           Test.Ouroboros.Network.PeerSelection.PeerGraph
 import           Test.Ouroboros.Network.ShrinkCarefully
 
 import           Ouroboros.Network.PeerSelection.LedgerPeers (LedgerPeer)
+import           Ouroboros.Network.Protocol.PeerSharing.Type
+                     (PeerSharingResult (..))
 import           Test.QuickCheck
 import           Test.Tasty (TestTree, localOption, testGroup)
 import           Test.Tasty.QuickCheck (QuickCheckMaxSize (..), testProperty)
@@ -181,6 +184,7 @@ runGovernorInMockEnvironment mockEnv =
 
 governorAction :: GovernorMockEnvironment -> IOSim s Void
 governorAction mockEnv = do
+    publicStateVar <- StrictTVar.newTVarIO emptyPublicPeerSelectionState
     policy  <- mockPeerSelectionPolicy                mockEnv
     actions <- mockPeerSelectionActions tracerMockEnv mockEnv policy
     exploreRaces      -- explore races within the governor
@@ -190,6 +194,7 @@ governorAction mockEnv = do
         tracerDebugPeerSelection
         tracerTracePeerSelectionCounters
         (mkStdGen 42)
+        publicStateVar
         actions
         policy
       atomically retry
@@ -325,7 +330,7 @@ mockPeerSelectionActions' tracer
       traceWith tracer (TraceEnvRootsResult (Map.keys publicRootPeers))
       return (publicRootPeers, ttl)
 
-    requestPeerShare addr = do
+    requestPeerShare _ addr = do
       let Just (peerShareScript, _, _) = Map.lookup addr scripts
       mPeerShare <- stepScript peerShareScript
       traceWith tracer (TraceEnvPeerShareRequest addr mPeerShare)
@@ -340,7 +345,7 @@ mockPeerSelectionActions' tracer
         Just (peeraddrs, time) -> do
           threadDelay (interpretPeerShareTime time)
           traceWith tracer (TraceEnvPeerShareResult addr peeraddrs)
-          return peeraddrs
+          return (PeerSharingResult peeraddrs)
 
     establishPeerConnection :: PeerAddr -> m (PeerConn m)
     establishPeerConnection peeraddr = do
