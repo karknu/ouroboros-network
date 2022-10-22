@@ -19,8 +19,8 @@ import           Data.Foldable (asum, foldl', toList)
 import qualified Data.Map.Strict as Map
 import           Data.Maybe (catMaybes, maybeToList)
 import           Data.Maybe.Strict
-import           Data.Word (Word64)
 import           Data.Sequence.Strict (StrictSeq)
+import           Data.Word (Word64)
 import           GHC.Records (HasField, getField)
 import           Options.Applicative
 
@@ -104,8 +104,6 @@ instance ( ShelleyCompatible proto era
       txs = case Shelley.shelleyBlockRaw blk of
         SL.Block _ body -> CL.fromTxSeq @era body
 
------
-
 class PerEraAnalysis era where
     txExUnitsSteps :: Maybe (Core.Tx era -> Word64)
 
@@ -126,8 +124,6 @@ instance ( HasField "wits" (Core.Tx (BabbageEra c)) (Core.Witnesses (BabbageEra 
     txExUnitsSteps = Just $ \tx ->
         let (Alonzo.ExUnits _mem steps) = Alonzo.totExUnits tx
         in toEnum $ fromEnum steps
-
------
 
 -- | Shelley-era specific
 instance HasProtocolInfo (ShelleyBlock (TPraos StandardCrypto) StandardShelley) where

@@ -13,12 +13,14 @@ module Analysis (
     AnalysisEnv (..)
   , AnalysisName (..)
   , Limit (..)
+  , benchmarkLedgerOpsOutputPath
   , runAnalysis
   ) where
 
 import           Codec.CBOR.Encoding (Encoding)
 import           Control.Monad.Except
 import           Control.Tracer (Tracer (..), nullTracer, traceWith)
+import           Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import           Data.List (intercalate)
 import qualified Data.Map.Strict as Map
 import           Data.Word (Word16, Word64)
@@ -66,6 +68,8 @@ import           Ouroboros.Consensus.Storage.LedgerDB.OnDisk (DiskSnapshot (..),
 import           Ouroboros.Consensus.Storage.Serialisation (SizeInBytes,
                      encodeDisk)
 
+import           Analysis.BenchmarkLedgerOps.SlotDataPoint (mkSlotDataPoint)
+import qualified Analysis.BenchmarkLedgerOps.SlotDataPoint as DP
 import           HasAnalysis (HasAnalysis)
 import qualified HasAnalysis
 
@@ -447,15 +451,26 @@ traceLedgerProcessing
 
 {-------------------------------------------------------------------------------
   Analysis: maintain a ledger state and time the five major ledger calculations
-  for each block
+  for each block:
+
+  0. Forecast.
+  1. Header tick.
+  2. Header application.
+  3. Block tick.
+  4. Block application.
 -------------------------------------------------------------------------------}
 
-data St blk = St {- !IOLike.Time -} !GC.RTSStats !(ExtLedgerState blk)
+data BenchmarkLedgerOpsState blk = BenchmarkLedgerOpsState {
+       -- | RTS stats that correspond to either the point in time in which the
+       -- benchmarking process started, or the end of the previous block
+       -- application.
+       prevRtsStats    :: !GC.RTSStats
+       -- | Intermediate ledger state to which the next block will be applied.
+     , prevLedgerState :: !(ExtLedgerState blk)
+     }
 
-infixl :&
-pattern (:&) :: a -> b -> (a, b)
-pattern x :& y = (x, y)
-{-# COMPLETE (:&) #-}
+benchmarkLedgerOpsOutputPath :: String
+benchmarkLedgerOpsOutputPath = "ledger-ops-costs.csv" -- Do not forget to update the documentation if you update this.
 
 benchmarkLedgerOps ::
   forall blk.
@@ -463,104 +478,130 @@ benchmarkLedgerOps ::
      , LedgerSupportsProtocol blk
      )
   => Analysis blk
-benchmarkLedgerOps
-  (AnalysisEnv {db, registry, initLedger, cfg, limit}) = do
-    IO.hSetBuffering IO.stdout (IO.BlockBuffering $ Just $ 4*1024*1024)   -- useful?
-    putStrLn $ unwords $ reverse $ "...era-specific stats" : theHeadings
+benchmarkLedgerOps AnalysisEnv {db, registry, initLedger, cfg, limit} =
+    -- TODO: at the moment we do not offer a configuration option for changing
+    -- the location of the output file.
+    IO.withFile benchmarkLedgerOpsOutputPath IO.WriteMode $ \outFileHandle -> do
 
-    rtsStats <- GC.getRTSStats
-    let st0 = St rtsStats initLedger
+      -- IO.hSetBuffering IO.stdout (IO.BlockBuffering $ Just $ 4*1024*1024)   -- fixme useful?
+      let separator = "\t"
+      IO.hPutStrLn outFileHandle $  DP.showHeaders separator
+                                 ++ "...era-specific stats"
 
-    void $ processAll db registry GetBlock initLedger limit st0 process
+      rtsStats <- GC.getRTSStats
+      let st0 = BenchmarkLedgerOpsState rtsStats initLedger
+      chrono <- new
+
+      void $ processAll db registry GetBlock initLedger limit st0 (process outFileHandle separator chrono)
   where
     ccfg = topLevelConfigProtocol cfg
     lcfg = topLevelConfigLedger   cfg
 
-    _showTimeDiff t' t = show $ fromEnum (t' `IOLike.diffTime` t) `div` 1000000
-
-    -- nanoseconds from RTS
-    showNsDiff t' t = show $ (t' - t) `div` 1000
-
-    (theHeadings, theCells) =
-        let infixl `o`
-            (headings, acc) `o` heading =
-              ( heading : headings
-              , \(ts, t') ->
-                  let (cells, t) = acc ts
---                  in (showTimeDiff t' t : cells, t')
-                  in (showNsDiff t' t : cells, t')
-              )
-            acc0 (                                 rp :& slotGap :& both :& mut :& gc :& majGcCount, t') =
-                ( reverse [condense (realPointSlot rp),  slotGap,   both,   mut,   gc,   majGcCount]
-                , t'
-                )
-        in
-        (reverse [                              "slot", "slotGap", "both", "mut", "gc", "majGcCount"], acc0)
-          `o` "forecast"
-          `o` "headerTick"
-          `o` "headerApply"
-          `o` "blockTick"
-          `o` "blockApply"
-
-    slotCount :: SlotNo -> WithOrigin SlotNo -> String
-    slotCount (SlotNo i) = show . \case
-        Slotting.Origin        -> i
-        Slotting.At (SlotNo j) -> i - j
-
-    process :: St blk -> blk -> IO (St blk)
-    process (St prevRtsStats extLdgrSt) blk = do
+    process ::
+         IO.Handle
+      -> String
+      -- ^ Separator for the data that is printed
+      -> Chronometer
+      -> BenchmarkLedgerOpsState blk
+      -> blk
+      -> IO (BenchmarkLedgerOpsState blk)
+    process outFileHandle separator chrono BenchmarkLedgerOpsState {prevRtsStats, prevLedgerState} blk = do
         let slot = blockSlot      blk
             rp   = blockRealPoint blk
 
-        t0 <- GC.mutator_elapsed_ns <$> GC.getRTSStats
+        (!tickedLedgerView, mutElapsedForecast)    <- time chrono $ forecastTheLedgerView                  slot           rp
+        (!tickedHeaderSt,   mutElapsedHeaderTick)  <- time chrono $ tickTheHeaderState    tickedLedgerView slot
+        (!headerSt',        mutElapsedHeaderApply) <- time chrono $ applyTheHeader        tickedLedgerView tickedHeaderSt rp
+        (!tickedLedgerSt,   mutElapsedBlockTick)   <- time chrono $ tickTheLedgerState                     slot
+        (!ldgrSt',          mutElapsedBlockApply)  <- time chrono $ applyTheBlock                          tickedLedgerSt rp
 
-        -- forecast the LedgerView
-        let forecaster = ledgerViewForecastAt lcfg (ledgerState extLdgrSt)
-        !tickedLedgerView <- case runExcept $ forecastFor forecaster slot of
+        currentRtsStats <- GC.getRTSStats
+        let
+          slotDataPoint = DP.mkSlotDataPoint
+                            (realPointSlot rp)
+                            (slot `slotCount` getTipSlot prevLedgerState)
+                            (GC.elapsed_ns         currentRtsStats `nsDiff` GC.elapsed_ns prevRtsStats)
+                            (GC.mutator_elapsed_ns currentRtsStats `nsDiff` GC.mutator_elapsed_ns prevRtsStats)
+                            (GC.gc_elapsed_ns      currentRtsStats `nsDiff` GC.gc_elapsed_ns prevRtsStats)
+                            (GC.major_gcs          currentRtsStats    -     GC.major_gcs prevRtsStats)
+                            (mutElapsedForecast    `div` 1000)
+                            (mutElapsedHeaderTick  `div` 1000)
+                            (mutElapsedHeaderApply `div` 1000)
+                            (mutElapsedBlockTick   `div` 1000)
+                            (mutElapsedBlockApply  `div` 1000)
+          -- Compute the difference between two 'RtsTime's and convert it to microseconds.
+          nsDiff t t'   = (t - t') `div` 1000
+          slotCount (SlotNo i) = \case
+            Slotting.Origin        -> i
+            Slotting.At (SlotNo j) -> i - j
+
+        IO.hPutStrLn outFileHandle (   DP.showData slotDataPoint separator
+                                    ++ intercalate separator (HasAnalysis.blockStats blk)
+                                   )
+
+        pure $ BenchmarkLedgerOpsState currentRtsStats $ ExtLedgerState ldgrSt' headerSt'
+      where
+        forecastTheLedgerView slot rp = do
+          let forecaster = ledgerViewForecastAt lcfg (ledgerState prevLedgerState)
+          case runExcept $ forecastFor forecaster slot of
             Left err -> fail $ "benchmark doesn't support headers beyond the forecast limit: " <> show rp <> " " <> show err
             Right !x -> pure x
 
-        t1 <- GC.mutator_elapsed_ns <$> GC.getRTSStats
+        tickTheHeaderState tickedLedgerView slot =
+          pure $! tickHeaderState ccfg
+                                  tickedLedgerView
+                                  slot
+                                  (headerState prevLedgerState)
 
-        -- tick the HeaderState
-        let !tickedHeaderState = tickHeaderState ccfg tickedLedgerView slot (headerState extLdgrSt)
-
-        t2 <- GC.mutator_elapsed_ns <$> GC.getRTSStats
-
-        -- apply the header
-        !headerState' <- case runExcept $ validateHeader cfg tickedLedgerView (getHeader blk) tickedHeaderState of
+        applyTheHeader tickedLedgerView tickedHeaderState rp = do
+          case runExcept $ validateHeader cfg tickedLedgerView (getHeader blk) tickedHeaderState of
             Left err -> fail $ "benchmark doesn't support invalid headers: " <> show rp <> " " <> show err
             Right x -> pure x
 
-        t3 <- GC.mutator_elapsed_ns <$> GC.getRTSStats
+        tickTheLedgerState slot =
+          pure $! applyChainTick lcfg slot (ledgerState prevLedgerState)
 
-        -- tick the ledger state
-        let !tickedLdgrSt = applyChainTick lcfg slot (ledgerState extLdgrSt)
-
-        t4 <- GC.mutator_elapsed_ns <$> GC.getRTSStats
-
-        -- apply the block
-        !ldgrSt' <- case runExcept (lrResult <$> applyBlockLedgerResult lcfg blk tickedLdgrSt) of
+        applyTheBlock tickedLedgerSt rp= do
+          case runExcept (lrResult <$> applyBlockLedgerResult lcfg blk tickedLedgerSt) of
             Left err -> fail $ "benchmark doesn't support invalid blocks: " <> show rp <> " " <> show err
             Right x -> pure x
 
-        rtsStats5 <- GC.getRTSStats
-        let t5 = GC.mutator_elapsed_ns rtsStats5
+newtype Chronometer = Chronometer { mutatorElapsedTimeNS :: IORef GC.RtsTime }
 
-        putStrLn
-          $ unwords
-          $ reverse (fst $ theCells $
-                           rp
-                        :& (slot `slotCount` getTipSlot extLdgrSt)
-                        :& showNsDiff (GC.elapsed_ns rtsStats5) (GC.elapsed_ns prevRtsStats)
-                        :& showNsDiff t5 (GC.mutator_elapsed_ns prevRtsStats)
-                        :& showNsDiff (GC.gc_elapsed_ns rtsStats5) (GC.gc_elapsed_ns prevRtsStats)
-                        :& show (GC.major_gcs rtsStats5 - GC.major_gcs prevRtsStats)
-                        :& t0 :& t1 :& t2 :& t3 :& t4 :& t5
-                    )
-            ++ HasAnalysis.blockStats blk
+new  :: IO Chronometer
+new = do
+  t0  <- GC.mutator_elapsed_ns <$> GC.getRTSStats
+  ref <- newIORef t0
+  pure $! Chronometer ref
 
-        pure $ St rtsStats5 $ ExtLedgerState ldgrSt' headerState'
+-- | Compute how many nanoseconds the mutator used from the last recorded
+-- 'elapsedTime' till the end of the execution of the given action.
+--
+-- Calling time updates 'elapsedTime'. In this way we avoid having to call
+-- @getRTSStats@ twice in this function. The caveat is that if multiple actions
+-- are timed using 'time', no other computations should take place in between
+-- invocations to 'time'. Otherwise, the time spent in computations outside
+-- 'time' will be counted as well. If it is necessary to perform other
+-- computations between calls to 'time' use 'reset' prior to calling this
+-- function.
+--
+-- TODO: the overhead introduced by calling this function and updating the
+-- @IORef@ should be negligible.
+time :: Chronometer -> IO a -> IO (a, GC.RtsTime)
+time Chronometer { mutatorElapsedTimeNS } act = do
+    tPrev <- readIORef mutatorElapsedTimeNS
+    r <- act
+    tNow <- GC.mutator_elapsed_ns <$> GC.getRTSStats
+    writeIORef mutatorElapsedTimeNS tNow
+    pure $ (r, tNow - tPrev)
+
+
+-- | Set 'elapsedTime' to the latest 'mutator_elapsed_ns' value reported by
+-- 'getRTSStats'.
+reset :: Chronometer -> IO ()
+reset Chronometer { mutatorElapsedTimeNS } = do
+    t0 <- GC.mutator_elapsed_ns <$> GC.getRTSStats
+    writeIORef mutatorElapsedTimeNS t0
 
 {-------------------------------------------------------------------------------
   Analysis: reforge the blocks, via the mempool

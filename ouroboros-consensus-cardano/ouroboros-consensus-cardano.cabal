@@ -107,6 +107,7 @@ executable db-analyser
                      , plutus-ledger-api
   other-modules:
                        Analysis
+                     , Analysis.BenchmarkLedgerOps.SlotDataPoint
                      , Block.Byron
                      , Block.Cardano
                      , Block.Shelley

@@ -162,7 +162,9 @@ parseAnalysis = asum [
     , flag' BenchmarkLedgerOps $ mconcat [
           long "benchmark-ledger-ops"
         , help $ "Maintain ledger state and benchmark the main ledger calculations for each block."
-                <> "Prints one line of stats to stdout per block."
+                <> "Prints one line of stats to "
+                <> benchmarkLedgerOpsOutputPath
+                <> " per block."
         ]
     , fmap ReproMempoolAndForge $ option auto $ mconcat [
           long "repro-mempool-and-forge"

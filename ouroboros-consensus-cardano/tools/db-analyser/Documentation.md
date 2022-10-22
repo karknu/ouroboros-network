@@ -46,7 +46,10 @@ db-analyser will get quite noisy
 
 ### --only-immutable-db
 
-By default db-analyser will process all blocks from the current chain. That is from the genesis up to the current tip. In order to do this it must first properly initialize the whole ChainDB. That means that before it even starts processing blocks it will:
+By default db-analyser will process all blocks from the chain database
+(`ChainDB`), from the genesis block up to the chain tip. In order to do this it
+must first properly initialize the whole database. That means that before it
+even starts processing blocks it will:
 
 1. look for latest snapshot stored in DB_PATH/ledger
 2. load that snapshot into memory
@@ -93,18 +96,37 @@ The user can limit the maximum number of blocks that db-analyser will process.
 
 ### Analysis
 
-Lastly the user must provide the analysis they want to run on the chain. They must select one of below:
+Lastly the user must provide the analysis that should be run on the chain:
 
-* `--show-slot-block-no` Will print the slot and block number of each block it process
+* `--show-slot-block-no` prints the slot and block number of each block it
+  process.
 
-* `--count-tx-outputs` Will print the block and slot number, tx out output for given block and the cumulative tx out output for all the blocks seen so far
+* `--count-tx-outputs` prints the block and slot number, tx out output for given
+  block and the cumulative tx out output for all the blocks seen so far.
 
-* `--show-block-header-size` Will show block header size for each block and also the maximum head size it has seen in the whole chain it processed
+* `--show-block-header-size` shows block header size for each block and also the
+  maximum head size it has seen in the whole chain it processed.
 
-* `--show-block-txs-size` Will print number of transactions and transactions size per each block
+* `--show-block-txs-size` prints number of transactions and transactions size
+  per each block.
 
-* `--show-ebbs` Will print all EBB blocks including their hash, previous block hash and a boolean value whether it is a known EBB (list of known EBBs stored in module `Ouroboros.Consensus.Byron.EBBs`)
+* `--show-ebbs` prints all EBB blocks including their hash, previous block hash
+  and a boolean value whether it is a known EBB (list of known EBBs stored in
+  module `Ouroboros.Consensus.Byron.EBBs`).
 
-* `--store-ledger SLOT_NUMBER` Will store a snapshot of a ledger state under `DB_PATH/ledger/SLOT_NUMBER_db-analyser`. If there is no block under requested slot number, it will create one on the next available slot number (and issue a warning about this fact).
+* `--store-ledger SLOT_NUMBER` stores a snapshot of a ledger state under
+  `DB_PATH/ledger/SLOT_NUMBER_db-analyser`. If there is no block under requested
+  slot number, it will create one on the next available slot number (and issue a
+  warning about this fact).
 
-* `--count-blocks` Will print out the number of blocks it saw on the chain
+* `--count-blocks` prints out the number of blocks it saw on the chain.
+
+* `--benchmark-ledger-ops` applies the main ledger calculations to each block in
+  the chain database, and collect different metrics such as total time spent,
+  time spent doing garbage collection, etc. The ledger operations that this
+  command benchmarks are: forecasting, ticking and applying the header, and
+  ticking and applying a block. The benchmarking results are stored in a file
+  named `"ledger-ops-costs.csv"`. At the moment it is not possible to change the
+  output path. In the [`scripts`](./scripts) directory we provide a
+  `plot-ledger-ops-cost.gp` script that can be used to plot the benchmarking
+  results. See this file for usage information.

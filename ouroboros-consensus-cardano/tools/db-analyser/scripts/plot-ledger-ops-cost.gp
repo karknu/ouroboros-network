@@ -1,4 +1,3 @@
-#
 # Plot the results of running the 'db-analyser' with the 'benchmark-ledger-ops' flag.
 #
 # Usage
@@ -10,7 +9,7 @@
 # named "bench-ledger-ops.png". This can be changed by passing the 'out_file'
 # variable. For instance:
 #
-# gnuplot -e "bench_data='bench_data.csv'" -e "out_file=results.png" plot-ledger-ops-cost.gp
+# gnuplot -e "bench_data='ledger-ops-costs.csv'" -e "out_file=results.png" plot-ledger-ops-cost.gp
 #
 
 if (!exist("bench_data")) {
