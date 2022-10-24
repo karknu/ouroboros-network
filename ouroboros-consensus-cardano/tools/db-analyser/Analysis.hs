@@ -50,10 +50,10 @@ import           Ouroboros.Consensus.Ledger.SupportsProtocol
 import qualified Ouroboros.Consensus.Mempool.API as MP
 import qualified Ouroboros.Consensus.Mempool.Impl as MP
 import qualified Ouroboros.Consensus.Mempool.TxSeq as MP
+import           Ouroboros.Consensus.Protocol.Abstract (LedgerView)
 import           Ouroboros.Consensus.Storage.Common (BlockComponent (..),
                      StreamFrom (..))
 import           Ouroboros.Consensus.Storage.FS.API (SomeHasFS (..))
-import           Ouroboros.Consensus.Util.Condense (condense)
 import qualified Ouroboros.Consensus.Util.IOLike as IOLike
 import           Ouroboros.Consensus.Util.ResourceRegistry
 
@@ -68,7 +68,6 @@ import           Ouroboros.Consensus.Storage.LedgerDB.OnDisk (DiskSnapshot (..),
 import           Ouroboros.Consensus.Storage.Serialisation (SizeInBytes,
                      encodeDisk)
 
-import           Analysis.BenchmarkLedgerOps.SlotDataPoint (mkSlotDataPoint)
 import qualified Analysis.BenchmarkLedgerOps.SlotDataPoint as DP
 import           HasAnalysis (HasAnalysis)
 import qualified HasAnalysis
@@ -530,7 +529,8 @@ benchmarkLedgerOps AnalysisEnv {db, registry, initLedger, cfg, limit} =
                             (mutElapsedBlockTick   `div` 1000)
                             (mutElapsedBlockApply  `div` 1000)
           -- Compute the difference between two 'RtsTime's and convert it to microseconds.
-          nsDiff t t'   = (t - t') `div` 1000
+          nsDiff t t' = (t - t') `div` 1000
+
           slotCount (SlotNo i) = \case
             Slotting.Origin        -> i
             Slotting.At (SlotNo j) -> i - j
@@ -541,27 +541,48 @@ benchmarkLedgerOps AnalysisEnv {db, registry, initLedger, cfg, limit} =
 
         pure $ BenchmarkLedgerOpsState currentRtsStats $ ExtLedgerState ldgrSt' headerSt'
       where
+        forecastTheLedgerView ::
+             SlotNo
+          -> RealPoint blk
+          -> IO (Ticked (LedgerView (BlockProtocol blk)))
         forecastTheLedgerView slot rp = do
           let forecaster = ledgerViewForecastAt lcfg (ledgerState prevLedgerState)
           case runExcept $ forecastFor forecaster slot of
             Left err -> fail $ "benchmark doesn't support headers beyond the forecast limit: " <> show rp <> " " <> show err
             Right !x -> pure x
 
+        tickTheHeaderState ::
+             Ticked (LedgerView (BlockProtocol blk))
+          -> SlotNo
+          -> IO (Ticked (HeaderState blk))
         tickTheHeaderState tickedLedgerView slot =
           pure $! tickHeaderState ccfg
                                   tickedLedgerView
                                   slot
                                   (headerState prevLedgerState)
 
+
+        applyTheHeader ::
+             Ticked (LedgerView (BlockProtocol blk))
+          -> Ticked (HeaderState blk)
+          -> RealPoint blk
+          -> IO (HeaderState blk)
         applyTheHeader tickedLedgerView tickedHeaderState rp = do
           case runExcept $ validateHeader cfg tickedLedgerView (getHeader blk) tickedHeaderState of
             Left err -> fail $ "benchmark doesn't support invalid headers: " <> show rp <> " " <> show err
             Right x -> pure x
 
+        tickTheLedgerState ::
+             SlotNo
+          -> IO (Ticked (LedgerState blk))
         tickTheLedgerState slot =
           pure $! applyChainTick lcfg slot (ledgerState prevLedgerState)
 
-        applyTheBlock tickedLedgerSt rp= do
+        applyTheBlock ::
+             Ticked (LedgerState blk)
+          -> RealPoint blk
+          -> IO (LedgerState blk)
+        applyTheBlock tickedLedgerSt rp = do
           case runExcept (lrResult <$> applyBlockLedgerResult lcfg blk tickedLedgerSt) of
             Left err -> fail $ "benchmark doesn't support invalid blocks: " <> show rp <> " " <> show err
             Right x -> pure x
