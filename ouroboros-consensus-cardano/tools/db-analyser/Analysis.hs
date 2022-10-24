@@ -506,13 +506,11 @@ benchmarkLedgerOps AnalysisEnv {db, registry, initLedger, cfg, limit} =
       -> IO (BenchmarkLedgerOpsState blk)
     process outFileHandle separator chrono BenchmarkLedgerOpsState {prevRtsStats, prevLedgerState} blk = do
         let slot = blockSlot      blk
-            rp   = blockRealPoint blk
-
-        (!tickedLedgerView, mutElapsedForecast)    <- time chrono $ forecastTheLedgerView                  slot           rp
-        (!tickedHeaderSt,   mutElapsedHeaderTick)  <- time chrono $ tickTheHeaderState    tickedLedgerView slot
-        (!headerSt',        mutElapsedHeaderApply) <- time chrono $ applyTheHeader        tickedLedgerView tickedHeaderSt rp
-        (!tickedLedgerSt,   mutElapsedBlockTick)   <- time chrono $ tickTheLedgerState                     slot
-        (!ldgrSt',          mutElapsedBlockApply)  <- time chrono $ applyTheBlock                          tickedLedgerSt rp
+        (!tkLdgrView, tForecast) <- forecast            slot prevLedgerState
+        (!tkHdrSt,    tHdrTick)  <- tickTheHeaderState  slot prevLedgerState tkLdgrView
+        (!hdrSt',     tHdrApp)   <- applyTheHeader                           tkLdgrView tkHdrSt
+        (!tkLdgrSt,   tBlkTick)  <- tickTheLedgerState  slot prevLedgerState
+        (!ldgrSt',    tBlkApp)   <- applyTheBlock                                       tkLdgrSt
 
         currentRtsStats <- GC.getRTSStats
         let
@@ -523,11 +521,11 @@ benchmarkLedgerOps AnalysisEnv {db, registry, initLedger, cfg, limit} =
                             (GC.mutator_elapsed_ns currentRtsStats `nsDiff` GC.mutator_elapsed_ns prevRtsStats)
                             (GC.gc_elapsed_ns      currentRtsStats `nsDiff` GC.gc_elapsed_ns prevRtsStats)
                             (GC.major_gcs          currentRtsStats    -     GC.major_gcs prevRtsStats)
-                            (mutElapsedForecast    `div` 1000)
-                            (mutElapsedHeaderTick  `div` 1000)
-                            (mutElapsedHeaderApply `div` 1000)
-                            (mutElapsedBlockTick   `div` 1000)
-                            (mutElapsedBlockApply  `div` 1000)
+                            (tForecast `div` 1000)
+                            (tHdrTick  `div` 1000)
+                            (tHdrApp   `div` 1000)
+                            (tBlkTick  `div` 1000)
+                            (tBlkApp   `div` 1000)
           -- Compute the difference between two 'RtsTime's and convert it to microseconds.
           nsDiff t t' = (t - t') `div` 1000
 
@@ -539,50 +537,51 @@ benchmarkLedgerOps AnalysisEnv {db, registry, initLedger, cfg, limit} =
                                     ++ intercalate separator (HasAnalysis.blockStats blk)
                                    )
 
-        pure $ BenchmarkLedgerOpsState currentRtsStats $ ExtLedgerState ldgrSt' headerSt'
+        pure $ BenchmarkLedgerOpsState currentRtsStats $ ExtLedgerState ldgrSt' hdrSt'
       where
-        forecastTheLedgerView ::
+        rp = blockRealPoint blk
+
+        forecast ::
              SlotNo
-          -> RealPoint blk
-          -> IO (Ticked (LedgerView (BlockProtocol blk)))
-        forecastTheLedgerView slot rp = do
-          let forecaster = ledgerViewForecastAt lcfg (ledgerState prevLedgerState)
+          -> ExtLedgerState blk
+          -> IO (Ticked (LedgerView (BlockProtocol blk)), GC.RtsTime)
+        forecast slot st = time chrono $ do
+          let forecaster = ledgerViewForecastAt lcfg (ledgerState st)
           case runExcept $ forecastFor forecaster slot of
             Left err -> fail $ "benchmark doesn't support headers beyond the forecast limit: " <> show rp <> " " <> show err
             Right !x -> pure x
 
         tickTheHeaderState ::
-             Ticked (LedgerView (BlockProtocol blk))
-          -> SlotNo
-          -> IO (Ticked (HeaderState blk))
-        tickTheHeaderState tickedLedgerView slot =
+             SlotNo
+          -> ExtLedgerState blk
+          -> Ticked (LedgerView (BlockProtocol blk))
+          -> IO (Ticked (HeaderState blk), GC.RtsTime)
+        tickTheHeaderState slot st tickedLedgerView = time chrono $ do
           pure $! tickHeaderState ccfg
                                   tickedLedgerView
                                   slot
-                                  (headerState prevLedgerState)
-
+                                  (headerState st)
 
         applyTheHeader ::
              Ticked (LedgerView (BlockProtocol blk))
           -> Ticked (HeaderState blk)
-          -> RealPoint blk
-          -> IO (HeaderState blk)
-        applyTheHeader tickedLedgerView tickedHeaderState rp = do
+          -> IO (HeaderState blk, GC.RtsTime)
+        applyTheHeader tickedLedgerView tickedHeaderState = time chrono $ do
           case runExcept $ validateHeader cfg tickedLedgerView (getHeader blk) tickedHeaderState of
             Left err -> fail $ "benchmark doesn't support invalid headers: " <> show rp <> " " <> show err
             Right x -> pure x
 
         tickTheLedgerState ::
              SlotNo
-          -> IO (Ticked (LedgerState blk))
-        tickTheLedgerState slot =
-          pure $! applyChainTick lcfg slot (ledgerState prevLedgerState)
+          -> ExtLedgerState blk
+          -> IO (Ticked (LedgerState blk), GC.RtsTime)
+        tickTheLedgerState slot st =
+          time chrono $! pure $ applyChainTick lcfg slot (ledgerState st)
 
         applyTheBlock ::
              Ticked (LedgerState blk)
-          -> RealPoint blk
-          -> IO (LedgerState blk)
-        applyTheBlock tickedLedgerSt rp = do
+          -> IO (LedgerState blk, GC.RtsTime)
+        applyTheBlock tickedLedgerSt = time chrono $ do
           case runExcept (lrResult <$> applyBlockLedgerResult lcfg blk tickedLedgerSt) of
             Left err -> fail $ "benchmark doesn't support invalid blocks: " <> show rp <> " " <> show err
             Right x -> pure x
