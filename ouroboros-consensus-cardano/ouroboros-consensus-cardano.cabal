@@ -78,6 +78,17 @@ executable db-analyser
   build-depends:       aeson
                      , base
                      , bytestring
+                     , cborg
+                     , containers
+                     , contra-tracer
+                     , filepath          >=1.4   && <1.5
+                     , mtl
+                     , nothunks
+                     , optparse-applicative
+                     , serialise
+                     , strict-containers
+                     , text
+
                      , cardano-binary
                      , cardano-crypto-class
                      , cardano-crypto-wrapper
@@ -88,15 +99,6 @@ executable db-analyser
                      , cardano-ledger-shelley
                      , cardano-ledger-shelley-ma
                      , cardano-slotting
-                     , cborg
-                     , containers
-                     , contra-tracer
-                     , mtl
-                     , nothunks
-                     , optparse-applicative
-                     , serialise
-                     , strict-containers
-                     , text
 
                      , ouroboros-consensus
                      , ouroboros-consensus-byron
@@ -104,6 +106,7 @@ executable db-analyser
                      , ouroboros-consensus-protocol
                      , ouroboros-consensus-shelley
                      , ouroboros-network
+
                      , plutus-ledger-api
   other-modules:
                        Analysis
