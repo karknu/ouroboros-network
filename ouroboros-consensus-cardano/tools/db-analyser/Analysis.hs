@@ -489,7 +489,6 @@ benchmarkLedgerOps AnalysisEnv {db, registry, initLedger, cfg, limit} =
     -- the location of the output file.
     IO.withFile benchmarkLedgerOpsOutputPath IO.WriteMode $ \outFileHandle -> do
 
-      -- IO.hSetBuffering IO.stdout (IO.BlockBuffering $ Just $ 4*1024*1024)   -- fixme useful?
       let separator = "\t"
       IO.hPutStrLn outFileHandle $  DP.showHeaders separator
                                  ++ "...era-specific stats"
@@ -563,7 +562,7 @@ benchmarkLedgerOps AnalysisEnv {db, registry, initLedger, cfg, limit} =
           -> ExtLedgerState blk
           -> Ticked (LedgerView (BlockProtocol blk))
           -> IO (Ticked (HeaderState blk), GC.RtsTime)
-        tickTheHeaderState slot st tickedLedgerView = time chrono $ do
+        tickTheHeaderState slot st tickedLedgerView = time chrono $
           pure $! tickHeaderState ccfg
                                   tickedLedgerView
                                   slot
