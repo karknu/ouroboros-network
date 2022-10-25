@@ -457,6 +457,13 @@ traceLedgerProcessing
   2. Header application.
   3. Block tick.
   4. Block application.
+
+  We focus on these 5 operations because they are involved in:
+
+  - Chain syncing.
+  - Block forging.
+  - Block validation.
+
 -------------------------------------------------------------------------------}
 
 data BenchmarkLedgerOpsState blk = BenchmarkLedgerOpsState {
