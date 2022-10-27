@@ -489,7 +489,7 @@ benchmarkLedgerOps AnalysisEnv {db, registry, initLedger, cfg, limit} =
     -- the location of the output file.
     IO.withFile benchmarkLedgerOpsOutputPath IO.WriteMode $ \outFileHandle -> do
 
-      let separator = "\t"
+      let
       IO.hPutStrLn outFileHandle $  DP.showHeaders separator
                                  ++ "...era-specific stats"
 
@@ -497,20 +497,21 @@ benchmarkLedgerOps AnalysisEnv {db, registry, initLedger, cfg, limit} =
       let st0 = BenchmarkLedgerOpsState rtsStats initLedger
       chrono <- new
 
-      void $ processAll db registry GetBlock initLedger limit st0 (process outFileHandle separator chrono)
+      void $ processAll db registry GetBlock initLedger limit st0 (process outFileHandle chrono)
   where
+    -- Separator for the data that is printed
+    separator = "\t"
+
     ccfg = topLevelConfigProtocol cfg
     lcfg = topLevelConfigLedger   cfg
 
     process ::
          IO.Handle
-      -> String
-      -- ^ Separator for the data that is printed
       -> Chronometer
       -> BenchmarkLedgerOpsState blk
       -> blk
       -> IO (BenchmarkLedgerOpsState blk)
-    process outFileHandle separator chrono BenchmarkLedgerOpsState {prevRtsStats, prevLedgerState} blk = do
+    process outFileHandle chrono BenchmarkLedgerOpsState {prevRtsStats, prevLedgerState} blk = do
         let slot = blockSlot      blk
         (!tkLdgrView, tForecast) <- forecast            slot prevLedgerState
         (!tkHdrSt,    tHdrTick)  <- tickTheHeaderState  slot prevLedgerState tkLdgrView
