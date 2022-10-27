@@ -466,13 +466,9 @@ traceLedgerProcessing
 
 -------------------------------------------------------------------------------}
 
-data BenchmarkLedgerOpsState blk = BenchmarkLedgerOpsState {
-       -- | RTS stats that correspond to either the point in time in which the
-       -- benchmarking process started, or the end of the previous block
-       -- application.
-       prevRtsStats    :: !GC.RTSStats
+newtype BenchmarkLedgerOpsState blk = BenchmarkLedgerOpsState {
        -- | Intermediate ledger state to which the next block will be applied.
-     , prevLedgerState :: !(ExtLedgerState blk)
+       prevLedgerState :: ExtLedgerState blk
      }
 
 benchmarkLedgerOpsOutputPath :: String
@@ -493,8 +489,7 @@ benchmarkLedgerOps AnalysisEnv {db, registry, initLedger, cfg, limit} =
       IO.hPutStrLn outFileHandle $  DP.showHeaders separator
                                  ++ "...era-specific stats"
 
-      rtsStats <- GC.getRTSStats
-      let st0 = BenchmarkLedgerOpsState rtsStats initLedger
+      let st0 = BenchmarkLedgerOpsState initLedger
       chrono <- new
 
       void $ processAll db registry GetBlock initLedger limit st0 (process outFileHandle chrono)
@@ -511,7 +506,8 @@ benchmarkLedgerOps AnalysisEnv {db, registry, initLedger, cfg, limit} =
       -> BenchmarkLedgerOpsState blk
       -> blk
       -> IO (BenchmarkLedgerOpsState blk)
-    process outFileHandle chrono BenchmarkLedgerOpsState {prevRtsStats, prevLedgerState} blk = do
+    process outFileHandle chrono BenchmarkLedgerOpsState {prevLedgerState} blk = do
+        prevRtsStats <- GC.getRTSStats
         let slot = blockSlot      blk
         (!tkLdgrView, tForecast) <- forecast            slot prevLedgerState
         (!tkHdrSt,    tHdrTick)  <- tickTheHeaderState  slot prevLedgerState tkLdgrView
@@ -544,7 +540,7 @@ benchmarkLedgerOps AnalysisEnv {db, registry, initLedger, cfg, limit} =
                                     ++ intercalate separator (HasAnalysis.blockStats blk)
                                    )
 
-        pure $ BenchmarkLedgerOpsState currentRtsStats $ ExtLedgerState ldgrSt' hdrSt'
+        pure $ BenchmarkLedgerOpsState $ ExtLedgerState ldgrSt' hdrSt'
       where
         rp = blockRealPoint blk
 
