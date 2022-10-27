@@ -37,6 +37,7 @@ class (HasAnnTip blk, GetPrevHash blk, Condense (HeaderHash blk)) => HasAnalysis
   -- | Emit trace markers at points in processing.
   emitTraces     :: WithLedgerState blk -> [String]
 
+  -- | This method was introduced for the sake of the 'BenchmarkLedgerOps' pass.
   blockStats     :: blk -> [String]
 
 class HasProtocolInfo blk where
