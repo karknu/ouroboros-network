@@ -1,13 +1,9 @@
 {
   inputs,
   cell,
-}: let
-  inherit (inputs.tullia) flakeOutputTasks taskSequence;
-  inherit (inputs.nixpkgs) system lib;
-
-  common = {config, ...}: {
+}: {
+  ci = {config, lib, ...}: {
     preset = {
-      # needed on top-level task to set runtime options
       nix.enable = true;
 
       github-ci = {
@@ -20,33 +16,14 @@
         sha = config.preset.github-ci.lib.readRevision inputs.cells.cloud.library.actionCiInputName null;
       };
     };
+
+    command.text = let
+      inherit (inputs.nixpkgs) system;
+    in ''
+      nix build -L .#hydraJobs.${lib.escapeShellArg system}.required
+    '';
+
+    memory = 1024 * 8;
+    nomad.resources.cpu = 10000;
   };
-
-  ciTasks =
-    __mapAttrs
-    (_: flakeOutputTask: {...}: {
-      imports = [common flakeOutputTask];
-
-      memory = 1024 * 8;
-      nomad.resources.cpu = 10000;
-    })
-    (flakeOutputTasks ["hydraJobs" system] { outputs.hydraJobs.${system} = cell.hydraJobs; });
-
-  # make sure the aggregate is built last
-  ciTasksSeqOrder = let
-    required = "hydraJobs.${system}.required";
-    all = __attrNames ciTasks;
-  in
-    assert __elem required all;
-      lib.remove required all ++ [required];
-
-  ciTasksSeq = taskSequence "ci/" ciTasks ciTasksSeqOrder;
-in
-  ciTasks # for running separately
-  // ciTasksSeq # for running in an arbitrary sequence
-  // {
-    "ci" = {lib, ...}: {
-      imports = [common];
-      after = [(lib.last ciTasksSeqOrder)];
-    };
-  }
+}
