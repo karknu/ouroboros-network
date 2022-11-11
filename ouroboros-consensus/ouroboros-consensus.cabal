@@ -239,6 +239,7 @@ library
                        Ouroboros.Consensus.Storage.LedgerDB.HD.BackingStore
                        Ouroboros.Consensus.Storage.LedgerDB.HD.DiffSeq
                        Ouroboros.Consensus.Storage.LedgerDB.HD.LMDB
+                       Ouroboros.Consensus.Storage.LedgerDB.HD.LMDB.Bridge
                        Ouroboros.Consensus.Storage.LedgerDB.InMemory
                        Ouroboros.Consensus.Storage.LedgerDB.OnDisk
                        Ouroboros.Consensus.Storage.LedgerDB.Types
@@ -322,6 +323,7 @@ library
                      , nothunks          >=0.1.2 && <0.2
                      , psqueues          >=0.2.3 && <0.3
                      , random
+                     , reflection
                      , quiet             >=0.2   && <0.3
                      , semialign         >=1.1
                      , serialise         >=0.2   && <0.3

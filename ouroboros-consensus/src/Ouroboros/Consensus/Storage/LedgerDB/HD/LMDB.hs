@@ -24,26 +24,18 @@ module Ouroboros.Consensus.Storage.LedgerDB.HD.LMDB (
   , LMDBMK (..)
   ) where
 
-import qualified Codec.CBOR.Decoding as CBOR
-import           Codec.CBOR.Read (deserialiseFromBytes)
-import           Codec.CBOR.Write (toStrictByteString)
 import qualified Codec.Serialise as S (Serialise (..))
-import           Control.Exception (assert)
 import           Control.Monad (unless, void, when)
 import qualified Control.Monad.Class.MonadSTM as IOLike
 import qualified Control.Concurrent.Class.MonadSTM.TVar as IOLike
 import           Control.Monad.IO.Class (MonadIO (liftIO))
 import qualified Control.Tracer as Trace
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as LBS
-import           Data.ByteString.Unsafe (unsafeUseAsCStringLen)
 import           Data.Foldable (for_)
 import           Data.Functor (($>), (<&>))
 import           Data.Map (Map)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Strict
-import           Foreign (castPtr, copyBytes)
 import           GHC.Generics (Generic)
 
 import           Cardano.Slotting.Slot (SlotNo, WithOrigin (At))
@@ -53,13 +45,13 @@ import qualified Ouroboros.Consensus.Storage.FS.API as FS
 import qualified Ouroboros.Consensus.Storage.FS.API.Types as FS
 import qualified Ouroboros.Consensus.Storage.LedgerDB.HD.BackingStore as HD
 import qualified Ouroboros.Consensus.Storage.LedgerDB.HD.DiffSeq as DS
+import qualified Ouroboros.Consensus.Storage.LedgerDB.HD.LMDB.Bridge as Bridge
 import           Ouroboros.Consensus.Util (foldlM', unComp2, (:..:) (..))
 import           Ouroboros.Consensus.Util.IOLike (Exception (..), IOLike,
                      MonadCatch (..), MonadThrow (..), bracket, onException)
 
 import qualified Database.LMDB.Raw as LMDB
 import qualified Database.LMDB.Simple as LMDB
-import qualified Database.LMDB.Simple.Codec as LMDB.Codec
 import qualified Database.LMDB.Simple.Cursor as LMDB.Cursor
 import qualified Database.LMDB.Simple.Extra as LMDB
 import qualified Database.LMDB.Simple.Internal as LMDB.Internal
@@ -252,77 +244,6 @@ data ValueHandle m = ValueHandle
   }
 
 {-------------------------------------------------------------------------------
- LMDB Interface that uses CodecMK
--------------------------------------------------------------------------------}
-
-get ::
-     CodecMK k v
-  -> LMDB.Database k v
-  -> k
-  -> LMDB.Transaction mode (Maybe v)
-get (CodecMK encKey _ _ decVal) db k =
-  fmap (fmap (deserialiseBS "a value" decVal)) $ getBS db (toStrictByteString (encKey k))
-
-put ::
-     CodecMK k v
-  -> LMDB.Database k v
-  -> k
-  -> Maybe v
-  -> LMDB.Transaction LMDB.ReadWrite ()
-put (CodecMK encKey encVal _ _) db k =
-    maybe (void $ LMDB.Internal.deleteBS db keyBS) (putBS db keyBS . toStrictByteString . encVal)
-  where
-    keyBS = toStrictByteString (encKey k)
-
--- | Deserialise a 'BS.ByteString' using the provided decoder.
-deserialiseBS ::
-     String
-  -- ^ Label to be used for error reporting. This should describe the value to be deserialised.
-  -> (forall s . CBOR.Decoder s a)
-  -> BS.ByteString
-  -> a
-deserialiseBS label decoder bs = either err snd $ deserialiseFromBytes decoder $ LBS.fromStrict bs
-  where
-    err = error $ "foldrWithKey: error deserialising " ++ label ++ " from the database."
-
-{-------------------------------------------------------------------------------
- Alternatives to LMDB operations that do not rely on Serialise instances
-
- We cannot (easily and without runtime overhead) satisfy the Serialise
- constraints that the LMDB.Simple operations require. We have access to the
- codification and decodification functions provided in CodecMK, thus, we operate
- directly on ByteStrings.
-
- TODO: we might want to submit a patch against the upstream LMDB simple package
- with these new functions.
--------------------------------------------------------------------------------}
-
-getBS ::
-     LMDB.Database k v
-  -> BS.ByteString
-  -> LMDB.Transaction mode (Maybe BS.ByteString)
-getBS db k = LMDB.Internal.getBS' db k >>=
-    maybe (return Nothing) (liftIO . fmap Just . marshalInBS)
-
-putBS ::
-     LMDB.Database k v
-  -> BS.ByteString
-  -> BS.ByteString
-  -> LMDB.Transaction LMDB.ReadWrite ()
-putBS (LMDB.Internal.Db _ dbi) keyBS valueBS =  LMDB.Internal.Txn $ \txn ->
-    LMDB.Internal.marshalOutBS keyBS $ \kval -> do
-      let sz = BS.length valueBS
-      LMDB.MDB_val len ptr <- LMDB.mdb_reserve' LMDB.Internal.defaultWriteFlags txn dbi kval sz
-      let len' = fromIntegral len
-      assert (len' == sz) $
-        unsafeUseAsCStringLen valueBS $
-          \(bsp, lenToCopy) -> copyBytes ptr (castPtr bsp) lenToCopy
-
-
-marshalInBS :: LMDB.MDB_val -> IO BS.ByteString
-marshalInBS (LMDB.MDB_val len ptr) = BS.packCStringLen (castPtr ptr, fromIntegral len)
-
-{-------------------------------------------------------------------------------
   LMDB Interface specialized for ApplyMapKinds
 -------------------------------------------------------------------------------}
 
@@ -366,17 +287,15 @@ rangeRead count dbMK codecMK ksMK =
           runCursorHelper $ Just (lastExcludedKey, LMDB.Cursor.Exclusive)
   where
     LMDBMK _ db = dbMK
-    CodecMK encKey encVal decKey decVal = codecMK
 
     runCursorHelper ::
          Maybe (k, LMDB.Cursor.Bound)    -- ^ Lower bound on read range
       -> LMDB.Transaction mode (Map k v)
     runCursorHelper lb =
-      LMDB.Cursor.runCursorAsTransaction
-        (LMDB.Codec.Codec encKey decKey)
-        (LMDB.Codec.Codec encVal decVal)
+      Bridge.runCursorAsTransaction'
         (LMDB.Cursor.cgetMany lb count)
         db
+        codecMK
 
 initLMDBTable ::
      LMDBMK   k v
@@ -390,7 +309,7 @@ initLMDBTable (LMDBMK tblName db) codecMK (ApplyValuesMK (DS.Values utxoVals)) =
       isEmpty <- LMDB.null db
       unless isEmpty $ liftIO . throwIO $ DbErrInitialisingNonEmpty tblName
       void $ Map.traverseWithKey
-                 (\k v -> put codecMK db k (Just v))
+                 (Bridge.put codecMK db)
                  utxoVals
 
 --  Todo(jdral/dnadales): Would it be possible to issue a single @C@ call to
@@ -408,7 +327,7 @@ readLMDBTable (LMDBMK _ db) codecMK (ApplyKeysMK (DS.Keys keys)) =
   where
     lmdbReadTable = DS.Values <$> foldlM' go Map.empty (Set.toList keys)
       where
-        go m k = get codecMK db k <&> \case
+        go m k = Bridge.get codecMK db k <&> \case
           Nothing -> m
           Just v  -> Map.insert k v m
 
@@ -423,11 +342,11 @@ writeLMDBTable (LMDBMK _ db) codecMK (ApplyDiffMK d) =
   where
     lmdbWriteTable = void $ DS.traverseActs_ go d
       where
-        go k act = put codecMK db k $ case act of
-          DS.Del _v       -> Nothing
-          DS.Ins v        -> Just v
-          DS.DelIns _v v' -> Just v'
-          DS.InsDel       -> Nothing
+        go k act = case act of
+          DS.Del _v       -> void $ Bridge.delete codecMK db k
+          DS.Ins v        -> Bridge.put codecMK db k v
+          DS.DelIns _v v' -> Bridge.put codecMK db k v'
+          DS.InsDel       -> void $ Bridge.delete codecMK db k
 
 {-------------------------------------------------------------------------------
  Db Settings
