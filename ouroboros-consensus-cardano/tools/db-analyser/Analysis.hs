@@ -87,7 +87,7 @@ data AnalysisName =
   | CountBlocks
   | CheckNoThunksEvery Word64
   | TraceLedgerProcessing
-  | BenchmarkLedgerOps
+  | BenchmarkLedgerOps (Maybe FilePath)
   | ReproMempoolAndForge Int
   deriving Show
 
@@ -106,18 +106,18 @@ runAnalysis analysisName env@(AnalysisEnv { tracer }) = do
   go analysisName
   traceWith tracer DoneEvent
   where
-    go ShowSlotBlockNo             = showSlotBlockNo env
-    go CountTxOutputs              = countTxOutputs env
-    go ShowBlockHeaderSize         = showHeaderSize env
-    go ShowBlockTxsSize            = showBlockTxsSize env
-    go ShowEBBs                    = showEBBs env
-    go OnlyValidation              = return ()
-    go (StoreLedgerStateAt slotNo) = (storeLedgerStateAt slotNo) env
-    go CountBlocks                 = countBlocks env
-    go (CheckNoThunksEvery nBks)   = checkNoThunksEvery nBks env
-    go TraceLedgerProcessing       = traceLedgerProcessing env
-    go BenchmarkLedgerOps          = benchmarkLedgerOps env
-    go (ReproMempoolAndForge nBks) = reproMempoolForge nBks env
+    go ShowSlotBlockNo               = showSlotBlockNo env
+    go CountTxOutputs                = countTxOutputs env
+    go ShowBlockHeaderSize           = showHeaderSize env
+    go ShowBlockTxsSize              = showBlockTxsSize env
+    go ShowEBBs                      = showEBBs env
+    go OnlyValidation                = return ()
+    go (StoreLedgerStateAt slotNo)   = (storeLedgerStateAt slotNo) env
+    go CountBlocks                   = countBlocks env
+    go (CheckNoThunksEvery nBks)     = checkNoThunksEvery nBks env
+    go TraceLedgerProcessing         = traceLedgerProcessing env
+    go (BenchmarkLedgerOps mOutfile) = benchmarkLedgerOps mOutfile env
+    go (ReproMempoolAndForge nBks)   = reproMempoolForge nBks env
 
 type Analysis blk = AnalysisEnv IO blk -> IO ()
 
@@ -479,11 +479,9 @@ benchmarkLedgerOps ::
      ( HasAnalysis blk
      , LedgerSupportsProtocol blk
      )
-  => Analysis blk
-benchmarkLedgerOps AnalysisEnv {db, registry, initLedger, cfg, limit} =
-    -- TODO: at the moment we do not offer a configuration option for changing
-    -- the location of the output file.
-    IO.withFile benchmarkLedgerOpsOutputPath IO.WriteMode $ \outFileHandle -> do
+  => Maybe FilePath -> Analysis blk
+benchmarkLedgerOps mOutfile AnalysisEnv {db, registry, initLedger, cfg, limit} =
+    withFile mOutfile $ \outFileHandle -> do
 
       let
       IO.hPutStrLn outFileHandle $  DP.showHeaders separator
@@ -494,6 +492,10 @@ benchmarkLedgerOps AnalysisEnv {db, registry, initLedger, cfg, limit} =
 
       void $ processAll db registry GetBlock initLedger limit st0 (process outFileHandle chrono)
   where
+    withFile :: Maybe FilePath -> (IO.Handle -> IO r) -> IO r
+    withFile (Just outfile) = IO.withFile outfile IO.WriteMode
+    withFile Nothing        = \f -> f IO.stdout
+
     -- Separator for the data that is printed
     separator = "\t"
 

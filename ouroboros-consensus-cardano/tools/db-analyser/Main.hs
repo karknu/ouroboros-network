@@ -159,13 +159,7 @@ parseAnalysis = asum [
                 <> " of the ledger state and inserts markers for 'significant'"
                 <> " events, such as for example epoch transitions."
         ]
-    , flag' BenchmarkLedgerOps $ mconcat [
-          long "benchmark-ledger-ops"
-        , help $ "Maintain ledger state and benchmark the main ledger calculations for each block."
-                <> "Prints one line of stats to "
-                <> benchmarkLedgerOpsOutputPath
-                <> " per block."
-        ]
+    , benchmarkLedgerOpsParser
     , fmap ReproMempoolAndForge $ option auto $ mconcat [
           long "repro-mempool-and-forge"
         , help $ "Maintain ledger state and mempool trafficking the"
@@ -197,6 +191,28 @@ parseLimit = asum [
       ])
   , pure Unlimited
   ]
+
+benchmarkLedgerOpsParser :: Parser AnalysisName
+benchmarkLedgerOpsParser =
+    BenchmarkLedgerOps <$> (benchmarkLedgerOpsFlagParser *> pMaybeOutputFile)
+  where
+    benchmarkLedgerOpsFlagParser =
+      flag' BenchmarkLedgerOps $ mconcat [
+            long "benchmark-ledger-ops"
+          , help $ "Maintain ledger state and benchmark the main ledger calculations for each block."
+                  <> " Prints one line of stats per block to the given output file "
+                  <> " (defaults to stdout)."
+          ]
+
+pMaybeOutputFile :: Parser (Maybe FilePath)
+pMaybeOutputFile =
+  optional $
+    strOption
+      (  long "out-file"
+      <> metavar "FILE"
+      <> help "Optional output file. Default is to write to stdout."
+      <> completer (bashCompleter "file")
+      )
 
 blockTypeParser :: Parser BlockType
 blockTypeParser = subparser $ mconcat
