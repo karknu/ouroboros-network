@@ -20,7 +20,6 @@ module Analysis (
 import           Codec.CBOR.Encoding (Encoding)
 import           Control.Monad.Except
 import           Control.Tracer (Tracer (..), nullTracer, traceWith)
-import           Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import           Data.List (intercalate)
 import qualified Data.Map.Strict as Map
 import           Data.Word (Word16, Word64)
@@ -488,9 +487,8 @@ benchmarkLedgerOps mOutfile AnalysisEnv {db, registry, initLedger, cfg, limit} =
                                  ++ "...era-specific stats"
 
       let st0 = BenchmarkLedgerOpsState initLedger
-      chrono <- new
 
-      void $ processAll db registry GetBlock initLedger limit st0 (process outFileHandle chrono)
+      void $ processAll db registry GetBlock initLedger limit st0 (process outFileHandle)
   where
     withFile :: Maybe FilePath -> (IO.Handle -> IO r) -> IO r
     withFile (Just outfile) = IO.withFile outfile IO.WriteMode
@@ -504,11 +502,10 @@ benchmarkLedgerOps mOutfile AnalysisEnv {db, registry, initLedger, cfg, limit} =
 
     process ::
          IO.Handle
-      -> Chronometer
       -> BenchmarkLedgerOpsState blk
       -> blk
       -> IO (BenchmarkLedgerOpsState blk)
-    process outFileHandle chrono BenchmarkLedgerOpsState {prevLedgerState} blk = do
+    process outFileHandle BenchmarkLedgerOpsState {prevLedgerState} blk = do
         prevRtsStats <- GC.getRTSStats
         let slot = blockSlot      blk
         (!tkLdgrView, tForecast) <- forecast            slot prevLedgerState
@@ -550,7 +547,7 @@ benchmarkLedgerOps mOutfile AnalysisEnv {db, registry, initLedger, cfg, limit} =
              SlotNo
           -> ExtLedgerState blk
           -> IO (Ticked (LedgerView (BlockProtocol blk)), GC.RtsTime)
-        forecast slot st = time chrono $ do
+        forecast slot st = time $ do
           let forecaster = ledgerViewForecastAt lcfg (ledgerState st)
           case runExcept $ forecastFor forecaster slot of
             Left err -> fail $ "benchmark doesn't support headers beyond the forecast limit: " <> show rp <> " " <> show err
@@ -561,7 +558,7 @@ benchmarkLedgerOps mOutfile AnalysisEnv {db, registry, initLedger, cfg, limit} =
           -> ExtLedgerState blk
           -> Ticked (LedgerView (BlockProtocol blk))
           -> IO (Ticked (HeaderState blk), GC.RtsTime)
-        tickTheHeaderState slot st tickedLedgerView = time chrono $
+        tickTheHeaderState slot st tickedLedgerView = time $
           pure $! tickHeaderState ccfg
                                   tickedLedgerView
                                   slot
@@ -571,7 +568,7 @@ benchmarkLedgerOps mOutfile AnalysisEnv {db, registry, initLedger, cfg, limit} =
              Ticked (LedgerView (BlockProtocol blk))
           -> Ticked (HeaderState blk)
           -> IO (HeaderState blk, GC.RtsTime)
-        applyTheHeader tickedLedgerView tickedHeaderState = time chrono $ do
+        applyTheHeader tickedLedgerView tickedHeaderState = time $ do
           case runExcept $ validateHeader cfg tickedLedgerView (getHeader blk) tickedHeaderState of
             Left err -> fail $ "benchmark doesn't support invalid headers: " <> show rp <> " " <> show err
             Right x -> pure x
@@ -581,52 +578,25 @@ benchmarkLedgerOps mOutfile AnalysisEnv {db, registry, initLedger, cfg, limit} =
           -> ExtLedgerState blk
           -> IO (Ticked (LedgerState blk), GC.RtsTime)
         tickTheLedgerState slot st =
-          time chrono $! pure $ applyChainTick lcfg slot (ledgerState st)
+          time $! pure $ applyChainTick lcfg slot (ledgerState st)
 
         applyTheBlock ::
              Ticked (LedgerState blk)
           -> IO (LedgerState blk, GC.RtsTime)
-        applyTheBlock tickedLedgerSt = time chrono $ do
+        applyTheBlock tickedLedgerSt = time $ do
           case runExcept (lrResult <$> applyBlockLedgerResult lcfg blk tickedLedgerSt) of
             Left err -> fail $ "benchmark doesn't support invalid blocks: " <> show rp <> " " <> show err
             Right x -> pure x
 
-newtype Chronometer = Chronometer { mutatorElapsedTimeNS :: IORef GC.RtsTime }
-
-new  :: IO Chronometer
-new = do
-  t0  <- GC.mutator_elapsed_ns <$> GC.getRTSStats
-  ref <- newIORef t0
-  pure $! Chronometer ref
-
 -- | Compute how many nanoseconds the mutator used from the last recorded
 -- 'elapsedTime' till the end of the execution of the given action.
 --
--- Calling time updates 'elapsedTime'. In this way we avoid having to call
--- @getRTSStats@ twice in this function. The caveat is that if multiple actions
--- are timed using 'time', no other computations should take place in between
--- invocations to 'time'. Otherwise, the time spent in computations outside
--- 'time' will be counted as well. If it is necessary to perform other
--- computations between calls to 'time' use 'reset' prior to calling this
--- function.
---
--- TODO: the overhead introduced by calling this function and updating the
--- @IORef@ should be negligible.
-time :: Chronometer -> IO a -> IO (a, GC.RtsTime)
-time Chronometer { mutatorElapsedTimeNS } act = do
-    tPrev <- readIORef mutatorElapsedTimeNS
+time :: IO a -> IO (a, GC.RtsTime)
+time act = do
+    tPrev <- GC.mutator_elapsed_ns <$> GC.getRTSStats
     r <- act
     tNow <- GC.mutator_elapsed_ns <$> GC.getRTSStats
-    writeIORef mutatorElapsedTimeNS tNow
-    pure $ (r, tNow - tPrev)
-
-
--- | Set 'elapsedTime' to the latest 'mutator_elapsed_ns' value reported by
--- 'getRTSStats'.
-reset :: Chronometer -> IO ()
-reset Chronometer { mutatorElapsedTimeNS } = do
-    t0 <- GC.mutator_elapsed_ns <$> GC.getRTSStats
-    writeIORef mutatorElapsedTimeNS t0
+    pure (r, tNow - tPrev)
 
 {-------------------------------------------------------------------------------
   Analysis: reforge the blocks, via the mempool
