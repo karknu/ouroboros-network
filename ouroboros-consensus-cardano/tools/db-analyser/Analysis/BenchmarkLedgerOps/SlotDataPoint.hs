@@ -1,8 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
 module Analysis.BenchmarkLedgerOps.SlotDataPoint (
-    SlotDataPoint
-  , mkSlotDataPoint
+    SlotDataPoint (..)
   , showData
   , showHeaders
   ) where
@@ -49,23 +48,6 @@ data SlotDataPoint =
       , blockTick   :: !Int64
       , blockApply  :: !Int64
       }
-
--- | We allow the creation of a slot data point only in this way to make sure
--- data can only be printed using 'showData'.
-mkSlotDataPoint ::
-     SlotNo
-  -> Word64
-  -> Int64
-  -> Int64
-  -> Int64
-  -> Word32
-  -> Int64
-  -> Int64
-  -> Int64
-  -> Int64
-  -> Int64
-  -> SlotDataPoint
-mkSlotDataPoint = SlotDataPoint
 
 -- | Return the headers that correspond to the fields of 'SlotDataPoint'.
 --

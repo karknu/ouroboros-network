@@ -516,18 +516,20 @@ benchmarkLedgerOps mOutfile AnalysisEnv {db, registry, initLedger, cfg, limit} =
 
         currentRtsStats <- GC.getRTSStats
         let
-          slotDataPoint = DP.mkSlotDataPoint
-                            (realPointSlot rp)
-                            (slot `slotCount` getTipSlot prevLedgerState)
-                            (GC.elapsed_ns         currentRtsStats `nsDiff` GC.elapsed_ns prevRtsStats)
-                            (GC.mutator_elapsed_ns currentRtsStats `nsDiff` GC.mutator_elapsed_ns prevRtsStats)
-                            (GC.gc_elapsed_ns      currentRtsStats `nsDiff` GC.gc_elapsed_ns prevRtsStats)
-                            (GC.major_gcs          currentRtsStats    -     GC.major_gcs prevRtsStats)
-                            (tForecast `div` 1000)
-                            (tHdrTick  `div` 1000)
-                            (tHdrApp   `div` 1000)
-                            (tBlkTick  `div` 1000)
-                            (tBlkApp   `div` 1000)
+          slotDataPoint =
+            DP.SlotDataPoint
+            { slot        = realPointSlot rp
+            , slotGap     = slot `slotCount` getTipSlot prevLedgerState
+            , totalTime   = GC.elapsed_ns         currentRtsStats `nsDiff` GC.elapsed_ns prevRtsStats
+            , mut         = GC.mutator_elapsed_ns currentRtsStats `nsDiff` GC.mutator_elapsed_ns prevRtsStats
+            , gc          = GC.gc_elapsed_ns      currentRtsStats `nsDiff` GC.gc_elapsed_ns prevRtsStats
+            , majGcCount  = GC.major_gcs          currentRtsStats    -     GC.major_gcs prevRtsStats
+            , forecast    = tForecast `div` 1000
+            , headerTick  = tHdrTick  `div` 1000
+            , headerApply = tHdrApp   `div` 1000
+            , blockTick   = tBlkTick  `div` 1000
+            , blockApply  = tBlkApp   `div` 1000
+            }
           -- Compute the difference between two 'RtsTime's and convert it to microseconds.
           nsDiff t t' = (t - t') `div` 1000
 
