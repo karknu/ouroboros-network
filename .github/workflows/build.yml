@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches:
+      - 'amesgen/windows-sisyphus'
       - 'bors/*'
 
 jobs:
@@ -18,7 +19,7 @@ jobs:
       fail-fast: false
       matrix:
         ghc: ["8.10.7"]
-        os: [ubuntu-latest, windows-latest]
+        os: [windows-latest]
 
     env:
       # current ref from: 27.02.2022
