@@ -97,6 +97,7 @@ executable db-converter
                      , ouroboros-network
                      , ouroboros-consensus
                      , ouroboros-consensus-byron
+                     , ouroboros-node
 
   default-language:    Haskell2010
   ghc-options:         -Wall
