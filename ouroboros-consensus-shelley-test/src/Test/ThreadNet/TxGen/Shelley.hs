@@ -51,7 +51,6 @@ data ShelleyTxGenExtra h = ShelleyTxGenExtra
   }
 
 instance HashAlgorithm h => TxGen (ShelleyBlock (TPraos (MockCrypto h)) (MockShelley h)) where
-
   type TxGenExtra (ShelleyBlock (TPraos (MockCrypto h)) (MockShelley h)) = ShelleyTxGenExtra h
 
   testGenTxs _coreNodeId _numCoreNodes curSlotNo cfg extra lst
@@ -62,8 +61,6 @@ instance HashAlgorithm h => TxGen (ShelleyBlock (TPraos (MockCrypto h)) (MockShe
       --
       -- When fixed, remove the line below to re-enable the transaction
       -- generator.
-      | otherwise               = pure []
-
       | otherwise               = do
       n <- choose (0, 20)
       go [] n $ applyChainTick lcfg curSlotNo lst

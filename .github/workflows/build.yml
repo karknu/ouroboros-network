@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ghc: ["8.10.7"]
+        ghc: ["8.10.7", "9.2.5"]
         os: [ubuntu-latest, windows-latest]
 
     env:
@@ -53,7 +53,7 @@ jobs:
       id: setup-haskell
       with:
         ghc-version: ${{ matrix.ghc }}
-        cabal-version: 3.6.2.0
+        cabal-version: 3.8.1.0
 
     - name: "WIN: Setup Haskell"
       id: win-setup-haskell
@@ -65,7 +65,7 @@ jobs:
           BOOTSTRAP_HASKELL_ADJUST_CABAL_CONFIG=1 \
           BOOTSTRAP_HASKELL_ADJUST_BASHRC=1 \
           BOOTSTRAP_HASKELL_GHC_VERSION="${{ matrix.ghc }}" \
-          BOOTSTRAP_HASKELL_CABAL_VERSION="3.6.2.0" \
+          BOOTSTRAP_HASKELL_CABAL_VERSION="3.8.1.0" \
           sh
 
         # MSYS2 doesn't inherit $GITHUB_PATH so this is needed
