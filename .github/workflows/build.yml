@@ -179,6 +179,12 @@ jobs:
     - name: ourobors-network-framework [test]
       run: cabal run ouroboros-network-framework:test -- -p '$0 != "typed-protocols.Socket.socket send receive IPv4"'
 
+    - name: ouroboros-network-protocols-test [test]
+      run: cabal run ouroboros-network-protocols-test:test
+
+    - name: ouroboros-network-protocols [cddl]
+      run: cabal run ouroboros-network-protocols-test:cddl
+
     - name: ouroboros-network [test]
       run: cabal run ouroboros-network:test
 

@@ -51,13 +51,11 @@ import           Ouroboros.Network.Magic
 import           Ouroboros.Network.Testing.ConcreteBlock (Block,
                      BlockHeader (..))
 
-import           Ouroboros.Network.NodeToClient (NodeToClientVersion (..),
-                     NodeToClientVersionData (..), nodeToClientHandshakeCodec)
-import           Ouroboros.Network.NodeToClient.Version
-                     (nodeToClientCodecCBORTerm)
-import           Ouroboros.Network.NodeToNode (NodeToNodeVersion (..),
-                     NodeToNodeVersionData (..), nodeToNodeHandshakeCodec)
-import           Ouroboros.Network.NodeToNode.Version (DiffusionMode (..),
+import           Ouroboros.Network.NodeToClient.Version (NodeToClientVersion (..),
+                     NodeToClientVersionData (..), nodeToClientCodecCBORTerm,
+                     nodeToClientHandshakeCodec)
+import           Ouroboros.Network.NodeToNode.Version (DiffusionMode (..), NodeToNodeVersion (..),
+                     NodeToNodeVersionData (..), nodeToNodeHandshakeCodec,
                      nodeToNodeCodecCBORTerm)
 import           Ouroboros.Network.Protocol.BlockFetch.Codec (codecBlockFetch)
 import           Ouroboros.Network.Protocol.BlockFetch.Test ()
@@ -208,9 +206,9 @@ data CDDLSpecs = CDDLSpecs {
 
 readCDDLSpecs :: IO CDDLSpecs
 readCDDLSpecs = do
-    dir <- bool (                        "test-cddl" </> "specs") -- False
-                ("ouroboros-network" </> "test-cddl" </> "specs") -- True
-       <$> doesDirectoryExist "ouroboros-network"
+    dir <- bool (                                       "test-cddl" </> "specs") -- False
+                ("ouroboros-network-protocols-test" </> "test-cddl" </> "specs") -- True
+       <$> doesDirectoryExist "ouroboros-network-protocols-test"
     common                <- BL.readFile (dir </> "common.cddl")
     handshakeNodeToClient <- BL.readFile (dir </> "handshake-node-to-client.cddl")
     handshakeNodeToNode   <- BL.readFile (dir </> "handshake-node-to-node.cddl")
