@@ -49,8 +49,8 @@ import           System.Random hiding (next)
 
 import           Cardano.Binary (FromCBOR (..), ToCBOR (..))
 
-import           Test.QuickCheck (Gen)
 import qualified Test.QuickCheck as QC
+import           Test.QuickCheck (Gen)
 import qualified Test.QuickCheck.Monadic as QC
 import qualified Test.QuickCheck.Random as QC
 import           Test.StateMachine hiding (showLabelledExamples)

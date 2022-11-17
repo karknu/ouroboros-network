@@ -25,9 +25,9 @@ module Ouroboros.Consensus.Storage.LedgerDB.HD.LMDB (
   ) where
 
 import qualified Codec.Serialise as S (Serialise (..))
+import qualified Control.Concurrent.Class.MonadSTM.TVar as IOLike
 import           Control.Monad (unless, void, when)
 import qualified Control.Monad.Class.MonadSTM as IOLike
-import qualified Control.Concurrent.Class.MonadSTM.TVar as IOLike
 import           Control.Monad.IO.Class (MonadIO (liftIO))
 import qualified Control.Tracer as Trace
 import           Data.Foldable (for_)
