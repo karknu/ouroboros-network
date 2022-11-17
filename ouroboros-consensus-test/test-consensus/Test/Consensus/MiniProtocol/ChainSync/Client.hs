@@ -31,11 +31,11 @@ import qualified Ouroboros.Network.AnchoredFragment as AF
 import           Ouroboros.Network.Block (getTipPoint)
 import           Ouroboros.Network.Channel
 import           Ouroboros.Network.Driver
-import           Ouroboros.Network.MockChain.Chain (Chain (Genesis))
-import qualified Ouroboros.Network.MockChain.Chain as Chain
-import           Ouroboros.Network.MockChain.ProducerState (chainState,
+import           Ouroboros.Network.Mock.Chain (Chain (Genesis))
+import qualified Ouroboros.Network.Mock.Chain as Chain
+import           Ouroboros.Network.Mock.ProducerState (chainState,
                      initChainProducerState)
-import qualified Ouroboros.Network.MockChain.ProducerState as CPS
+import qualified Ouroboros.Network.Mock.ProducerState as CPS
 import           Ouroboros.Network.Mux (ControlMessage (..))
 import           Ouroboros.Network.Protocol.ChainSync.ClientPipelined
 import           Ouroboros.Network.Protocol.ChainSync.Codec (codecChainSyncId)

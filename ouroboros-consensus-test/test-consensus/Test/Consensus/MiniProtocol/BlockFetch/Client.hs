@@ -49,8 +49,8 @@ import           Ouroboros.Network.BlockFetch (BlockFetchConfiguration (..),
 import           Ouroboros.Network.BlockFetch.Client (blockFetchClient)
 import           Ouroboros.Network.Channel (createConnectedChannels)
 import qualified Ouroboros.Network.Driver.Simple as Driver
-import           Ouroboros.Network.MockChain.Chain (Chain)
-import qualified Ouroboros.Network.MockChain.Chain as Chain
+import           Ouroboros.Network.Mock.Chain (Chain)
+import qualified Ouroboros.Network.Mock.Chain as Chain
 import qualified Ouroboros.Network.Mux as Mux
 import           Ouroboros.Network.NodeToNode.Version (NodeToNodeVersion)
 import           Ouroboros.Network.NodeToNode (isPipeliningEnabled)

@@ -65,7 +65,7 @@ import qualified Ouroboros.Network.AnchoredFragment as AF
 import           Ouroboros.Network.BlockFetch (BlockFetchConfiguration (..),
                      TraceLabelPeer (..))
 import           Ouroboros.Network.Channel
-import           Ouroboros.Network.MockChain.Chain (Chain (Genesis))
+import           Ouroboros.Network.Mock.Chain (Chain (Genesis))
 import           Ouroboros.Network.Point (WithOrigin (..))
 import qualified Ouroboros.Network.Protocol.ChainSync.Type as CS
 

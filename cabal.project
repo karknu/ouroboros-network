@@ -21,6 +21,7 @@ packages: ./ouroboros-network-testing
           ./monoidal-synchronisation
           ./network-mux
           ./ouroboros-network-framework
+          ./ouroboros-network-mock
           ./ouroboros-network-protocols
           ./ouroboros-network-protocols-test
           ./ouroboros-network

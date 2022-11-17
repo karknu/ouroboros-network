@@ -27,11 +27,13 @@ library
                        Ouroboros.Network.Protocol.BlockFetch.Test
                        Ouroboros.Network.Protocol.ChainSync.Direct
                        Ouroboros.Network.Protocol.ChainSync.DirectPipelined
+                       Ouroboros.Network.Protocol.ChainSync.Examples
                        Ouroboros.Network.Protocol.ChainSync.ExamplesPipelined
                        Ouroboros.Network.Protocol.ChainSync.Test
                        Ouroboros.Network.Protocol.Handshake.Direct
                        Ouroboros.Network.Protocol.Handshake.Test
                        Ouroboros.Network.Protocol.LocalStateQuery.Direct
+                       Ouroboros.Network.Protocol.LocalStateQuery.Examples
                        Ouroboros.Network.Protocol.LocalStateQuery.Test
                        Ouroboros.Network.Protocol.LocalTxSubmission.Direct
                        Ouroboros.Network.Protocol.LocalTxSubmission.Examples
@@ -69,8 +71,9 @@ library
                        io-classes,
                        io-sim,
                        network-mux,
-                       ouroboros-network-protocols,
                        ouroboros-network-framework,
+                       ouroboros-network-mock,
+                       ouroboros-network-protocols,
                        ouroboros-network-testing,
                        strict-stm,
                        typed-protocols
@@ -101,6 +104,7 @@ test-suite test
                        tasty,
                        tasty-quickcheck,
 
+                       ouroboros-network-mock,
                        ouroboros-network-testing,
                        ouroboros-network-protocols,
                        ouroboros-network-protocols-test
@@ -134,6 +138,7 @@ test-suite cddl
 
                        typed-protocols,
                        ouroboros-network-framework,
+                       ouroboros-network-mock,
                        ouroboros-network-protocols,
                        ouroboros-network-protocols-test
 

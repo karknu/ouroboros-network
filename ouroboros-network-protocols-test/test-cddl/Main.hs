@@ -48,7 +48,7 @@ import           Ouroboros.Network.Block (Point, SlotNo, Tip, decodeTip,
                      encodeTip, unwrapCBORinCBOR, wrapCBORinCBOR)
 import           Ouroboros.Network.CodecCBORTerm
 import           Ouroboros.Network.Magic
-import           Ouroboros.Network.Testing.ConcreteBlock (Block,
+import           Ouroboros.Network.Mock.ConcreteBlock (Block,
                      BlockHeader (..))
 
 import           Ouroboros.Network.NodeToClient.Version (NodeToClientVersion (..),

@@ -69,15 +69,15 @@ import           Ouroboros.Network.ConnectionId
 import qualified Ouroboros.Network.Diffusion as Diff (Applications (..))
 import           Ouroboros.Network.Driver.Limits
 import           Ouroboros.Network.KeepAlive
-import qualified Ouroboros.Network.MockChain.Chain as Chain
-import           Ouroboros.Network.MockChain.ProducerState
+import qualified Ouroboros.Network.Mock.Chain as Chain
+import           Ouroboros.Network.Mock.ProducerState
 import           Ouroboros.Network.Mux
 import           Ouroboros.Network.NodeToNode.Version (DiffusionMode (..))
 import           Ouroboros.Network.PeerSelection.LedgerPeers
                      (LedgerPeersConsensusInterface)
 import           Ouroboros.Network.Util.ShowProxy
 
-import           Ouroboros.Network.Testing.ConcreteBlock
+import           Ouroboros.Network.Mock.ConcreteBlock
 
 import           Network.TypedProtocol
 

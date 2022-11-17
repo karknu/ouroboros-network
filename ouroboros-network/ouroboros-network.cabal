@@ -234,6 +234,7 @@ test-suite test
                        network-mux,
                        ouroboros-network,
                        ouroboros-network-framework,
+                       ouroboros-network-mock,
                        ouroboros-network-protocols,
                        ouroboros-network-protocols-test,
                        ouroboros-network-framework:testlib,
@@ -274,6 +275,7 @@ executable demo-chain-sync
                        typed-protocols,
                        network-mux,
                        ouroboros-network-framework,
+                       ouroboros-network-mock,
                        ouroboros-network-protocols,
                        ouroboros-network
 

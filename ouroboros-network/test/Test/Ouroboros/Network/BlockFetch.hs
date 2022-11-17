@@ -43,11 +43,11 @@ import           Ouroboros.Network.BlockFetch.ClientState
 import           Ouroboros.Network.BlockFetch.DeltaQ
 import           Ouroboros.Network.BlockFetch.Examples
 import           Ouroboros.Network.Driver (TraceSendRecv)
-import qualified Ouroboros.Network.MockChain.Chain as Chain
+import qualified Ouroboros.Network.Mock.Chain as Chain
+import           Ouroboros.Network.Mock.ConcreteBlock
 import           Ouroboros.Network.Mux (ControlMessage (..), continueForever)
 import           Ouroboros.Network.NodeToNode (isPipeliningEnabled)
 import           Ouroboros.Network.Protocol.BlockFetch.Type (BlockFetch)
-import           Ouroboros.Network.Testing.ConcreteBlock
 
 import           Ouroboros.Network.Testing.Utils
 

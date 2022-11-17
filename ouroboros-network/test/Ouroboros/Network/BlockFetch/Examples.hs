@@ -54,7 +54,7 @@ import           Ouroboros.Network.Protocol.BlockFetch.Server
 import           Ouroboros.Network.Protocol.BlockFetch.Type
 import           Ouroboros.Network.Util.ShowProxy
 
-import           Ouroboros.Network.Testing.ConcreteBlock
+import           Ouroboros.Network.Mock.ConcreteBlock
 
 
 -- | Run a single block fetch protocol until the chain is downloaded.
