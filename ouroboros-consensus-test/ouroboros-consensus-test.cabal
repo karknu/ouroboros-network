@@ -345,12 +345,12 @@ benchmark bench-storage
 
   build-depends:       base
                      , bytestring
+                     , cardano-strict-containers
                      , containers
                      , deepseq
                      , mtl
                      , QuickCheck
                      , QuickCheck-GenT
-                     , strict-containers
                      , tasty-bench <= 0.3.1
                      , tasty-quickcheck
 

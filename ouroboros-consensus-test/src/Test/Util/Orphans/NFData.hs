@@ -57,8 +57,11 @@ deriving newtype instance (Ord k, NFData k, NFData v) => NFData (SeqUtxoDiff k v
   DiffSeq
 -------------------------------------------------------------------------------}
 
--- deriving anyclass instance (NFData vt, NFData (FT.StrictFingerTree vi a)
---                            ) => NFData (RMFT.StrictFingerTree vt vi a)
+deriving anyclass instance ( NFData vt
+                           , NFData vi
+                           , NFData a
+                           , FT.Measured vi a
+                           ) => NFData (RMFT.StrictFingerTree vt vi a)
 
 deriving anyclass instance NFData v => NFData (DiffEntry v)
 deriving newtype instance NFData v => NFData (UnsafeDiffHistory Seq v)
@@ -76,4 +79,4 @@ deriving newtype instance NFData SlotNoLB
 deriving anyclass instance (NFData k, NFData v) => NFData (RootMeasure k v)
 deriving anyclass instance (NFData k, NFData v) => NFData (InternalMeasure k v)
 deriving anyclass instance (NFData k, NFData v) => NFData (Element k v)
---deriving newtype instance (NFData k, NFData v) => NFData (DiffSeq k v)
+deriving newtype instance (NFData k, NFData v) => NFData (DiffSeq k v)

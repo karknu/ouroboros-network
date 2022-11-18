@@ -376,8 +376,7 @@ newtype instance LedgerState (SimpleBlock c ext) mk = SimpleLedgerState {
 instance InMemory (LedgerState (SimpleBlock c ext)) where
   convertMapKind SimpleLedgerState {..} = SimpleLedgerState {..}
 
-instance (SimpleCrypto c, Typeable ext) => ShowLedgerState (LedgerState (SimpleBlock c ext)) where
-  showsLedgerState _sing = shows
+instance (SimpleCrypto c, Typeable ext) => ShowLedgerState (LedgerState (SimpleBlock c ext))
 
 -- Ticking has no effect on the simple ledger state
 newtype instance Ticked1 (LedgerState (SimpleBlock c ext)) mk = TickedSimpleLedgerState {
@@ -412,8 +411,7 @@ instance (SimpleCrypto c, Typeable ext) => TickedTableStuff (LedgerState (Simple
 instance SufficientSerializationForAnyBackingStore (LedgerState (SimpleBlock c ext)) where
     codecLedgerTables = NoMockTables
 
-instance ShowLedgerState (LedgerTables (LedgerState (SimpleBlock c ext))) where
-  showsLedgerState _sing = shows
+instance ShowLedgerState (LedgerTables (LedgerState (SimpleBlock c ext)))
 
 instance StowableLedgerTables (LedgerState (SimpleBlock c ext)) where
   stowLedgerTables     = convertMapKind
