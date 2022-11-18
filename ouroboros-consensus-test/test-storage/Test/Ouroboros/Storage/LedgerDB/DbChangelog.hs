@@ -101,7 +101,7 @@ nextState dblog = TestLedger {
     nextSlot = At . withOrigin 1 (+1)
 
 
-deriving instance IsApplyMapKind mk => Show (TestLedger mk)
+instance IsApplyMapKind mk => Show (TestLedger mk) where show = const ""
 
 instance GetTip (TestLedger mk) where
   getTip = castPoint . tlTip
@@ -117,14 +117,11 @@ deriving instance Eq (LedgerTables TestLedger DiffMK)
 deriving instance Eq (LedgerTables TestLedger ValuesMK)
 
 instance ShowLedgerState (LedgerTables TestLedger) where
-  showsLedgerState _ (TestTables t) = showString "TestTables " . shows t
-
-instance Show (ApplyMapKind' mk' Key Int) where
-  show ap = showsApplyMapKind ap ""
+  showsLedgerState _ (TestTables t) = showString "TestTables " . shows ""
 
 instance ShowLedgerState TestLedger where
   showsLedgerState _ TestLedger {tlUtxos, tlTip} =
-    showString "TestLedger" . showSpace . showString "{" . shows tlUtxos .
+    showString "TestLedger" . showSpace . showString "{" . shows "" .
     showCommaSpace . shows tlTip . showString "}"
 
 instance TableStuff TestLedger where

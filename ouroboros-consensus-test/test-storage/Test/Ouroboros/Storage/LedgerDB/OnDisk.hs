@@ -256,7 +256,9 @@ instance PayloadSemantics Tx where
 deriving stock    instance (Eq        (PayloadDependentState Tx EmptyMK))
 deriving stock    instance (Eq        (PayloadDependentState Tx DiffMK))
 deriving stock    instance (Eq        (PayloadDependentState Tx ValuesMK))
-deriving stock    instance (Show      (PayloadDependentState Tx (ApplyMapKind' mk)))
+deriving stock    instance (Show      (PayloadDependentState Tx EmptyMK))
+deriving stock    instance (Show      (PayloadDependentState Tx DiffMK))
+deriving stock    instance (Show      (PayloadDependentState Tx ValuesMK))
 deriving anyclass instance (Serialise (PayloadDependentState Tx EmptyMK))
 deriving anyclass instance (ToExpr    (PayloadDependentState Tx ValuesMK))
 deriving anyclass instance (NoThunks  (PayloadDependentState Tx EmptyMK))
@@ -309,7 +311,9 @@ instance TableStuff (LedgerState TestBlock) where
 deriving newtype  instance Eq       (LedgerTables (LedgerState TestBlock) EmptyMK)
 deriving newtype  instance Eq       (LedgerTables (LedgerState TestBlock) DiffMK)
 deriving newtype  instance Eq       (LedgerTables (LedgerState TestBlock) ValuesMK)
-deriving newtype  instance Show     (LedgerTables (LedgerState TestBlock) (ApplyMapKind' mk))
+deriving newtype  instance Show     (LedgerTables (LedgerState TestBlock) EmptyMK)
+deriving newtype  instance Show     (LedgerTables (LedgerState TestBlock) DiffMK)
+deriving newtype  instance Show     (LedgerTables (LedgerState TestBlock) ValuesMK)
 deriving anyclass instance NoThunks (LedgerTables (LedgerState TestBlock) EmptyMK)
 deriving anyclass instance NoThunks (LedgerTables (LedgerState TestBlock) ValuesMK)
 deriving anyclass instance NoThunks (LedgerTables (LedgerState TestBlock) DiffMK)
@@ -341,7 +345,7 @@ instance TickedTableStuff (LedgerState TestBlock) where
     TickedTestLedger $ withLedgerTables st tables
 
 instance ShowLedgerState (LedgerTables (LedgerState TestBlock)) where
-  showsLedgerState _sing = shows
+  showsLedgerState _sing _ = const ""
 
 instance StowableLedgerTables (LedgerState TestBlock) where
   stowLedgerTables     = stowErr "stowLedgerTables"
@@ -350,21 +354,14 @@ instance StowableLedgerTables (LedgerState TestBlock) where
 stowErr :: String -> a
 stowErr fname = error $ "Function " <> fname <> " should not be used in these tests."
 
-instance Show (ApplyMapKind' mk' Token TValue) where
-  show ap = showsApplyMapKind ap ""
-
-instance ToExpr (ApplyMapKind' mk' Token TValue) where
-  toExpr ApplyEmptyMK                 = App "ApplyEmptyMK"     []
-  toExpr (ApplyDiffMK diffs)          = App "ApplyDiffMK"      [genericToExpr diffs]
-  toExpr (ApplyKeysMK keys)           = App "ApplyKeysMK"      [genericToExpr keys]
-  toExpr (ApplySeqDiffMK (DS.UnsafeDiffSeq seqdiff))
-                                      = App "ApplySeqDiffMK"   [genericToExpr $ toList seqdiff]
-  toExpr (ApplyTrackingMK vals diffs) = App "ApplyTrackingMK"  [ genericToExpr vals
-                                                               , genericToExpr diffs
-                                                               ]
-  toExpr (ApplyValuesMK vals)         = App "ApplyValuesMK"    [genericToExpr vals]
-  toExpr ApplyQueryAllMK              = App "ApplyQueryAllMK"  []
-  toExpr (ApplyQuerySomeMK keys)      = App "ApplyQuerySomeMK" [genericToExpr keys]
+deriving anyclass instance ToExpr (EmptyMK Token TValue)
+deriving anyclass instance ToExpr (DiffMK Token TValue)
+deriving anyclass instance ToExpr (KeysMK Token TValue)
+instance ToExpr (SeqDiffMK Token TValue) where toExpr = App "ApplySeqDiffMK" . (:[]) . genericToExpr . toList . (\(ApplySeqDiffMK (DS.UnsafeDiffSeq diffseq)) -> diffseq)
+deriving anyclass instance ToExpr (TrackingMK Token TValue)
+deriving anyclass instance ToExpr (ValuesMK Token TValue)
+deriving anyclass instance ToExpr (QueryAllMK Token TValue)
+deriving anyclass instance ToExpr (QueryMK Token TValue)
 
 -- About this instance: we have that the use of
 --
