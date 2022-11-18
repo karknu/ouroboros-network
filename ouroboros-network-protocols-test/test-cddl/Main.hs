@@ -52,11 +52,9 @@ import           Ouroboros.Network.Mock.ConcreteBlock (Block,
                      BlockHeader (..))
 
 import           Ouroboros.Network.NodeToClient.Version (NodeToClientVersion (..),
-                     NodeToClientVersionData (..), nodeToClientCodecCBORTerm,
-                     nodeToClientHandshakeCodec)
+                     NodeToClientVersionData (..), nodeToClientCodecCBORTerm)
 import           Ouroboros.Network.NodeToNode.Version (DiffusionMode (..), NodeToNodeVersion (..),
-                     NodeToNodeVersionData (..), nodeToNodeHandshakeCodec,
-                     nodeToNodeCodecCBORTerm)
+                     NodeToNodeVersionData (..), nodeToNodeCodecCBORTerm)
 import           Ouroboros.Network.Protocol.BlockFetch.Codec (codecBlockFetch)
 import           Ouroboros.Network.Protocol.BlockFetch.Test ()
 import           Ouroboros.Network.Protocol.BlockFetch.Type (BlockFetch)
@@ -69,6 +67,8 @@ import           Ouroboros.Network.Protocol.Handshake.Test (VersionNumber,
                      versionNumberHandshakeCodec)
 import           Ouroboros.Network.Protocol.Handshake.Type (Handshake)
 import qualified Ouroboros.Network.Protocol.Handshake.Type as Handshake
+import           Ouroboros.Network.Protocol.Handshake.Codec
+                     (nodeToClientHandshakeCodec, nodeToNodeHandshakeCodec)
 import           Ouroboros.Network.Protocol.KeepAlive.Codec (codecKeepAlive_v2)
 import           Ouroboros.Network.Protocol.KeepAlive.Test ()
 import           Ouroboros.Network.Protocol.KeepAlive.Type (KeepAlive)

@@ -42,6 +42,7 @@ import           System.Process (createPipe)
 
 import           Ouroboros.Network.Block (decodeTip, encodeTip)
 import           Ouroboros.Network.ConnectionId
+import           Ouroboros.Network.ControlMessage (continueForever)
 import           Ouroboros.Network.Mock.Chain (Chain, ChainUpdate, Point)
 import qualified Ouroboros.Network.Mock.Chain as Chain
 import qualified Ouroboros.Network.Mock.ProducerState as CPS

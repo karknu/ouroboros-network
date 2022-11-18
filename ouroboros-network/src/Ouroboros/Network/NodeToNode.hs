@@ -71,7 +71,6 @@ module Ouroboros.Network.NodeToNode
   , Handshake
   , LocalAddresses (..)
   , Socket
-  , isPipeliningEnabled
     -- ** Exceptions
   , ExceptionInHandler (..)
     -- ** Error Policies and Peer state
@@ -114,8 +113,8 @@ import           Network.Socket (Socket)
 import qualified Network.Socket as Socket
 
 import           Ouroboros.Network.BlockFetch.Client (BlockFetchProtocolFailure)
-import           Ouroboros.Network.BlockFetch.ClientState
-                     (WhetherReceivingTentativeBlocks (..))
+import           Ouroboros.Network.ControlMessage (ControlMessage (..),
+                     ControlMessageSTM)
 import           Ouroboros.Network.ConnectionManager.Types
                      (ExceptionInHandler (..))
 import           Ouroboros.Network.Driver (TraceSendRecv (..))
@@ -682,13 +681,3 @@ localNetworkErrorPolicy = ErrorPolicies {
 
 type RemoteAddress      = Socket.SockAddr
 type RemoteConnectionId = ConnectionId RemoteAddress
-
-
--- | Check whether a version enabling diffusion pipelining has been
--- negotiated.
---
--- TODO: this ought to be defined in `ouroboros-consensus` or `ouroboros-consensus-node`
-isPipeliningEnabled :: NodeToNodeVersion -> WhetherReceivingTentativeBlocks
-isPipeliningEnabled v
-  | v >= NodeToNodeV_8 = ReceivingTentativeBlocks
-  | otherwise          = NotReceivingTentativeBlocks

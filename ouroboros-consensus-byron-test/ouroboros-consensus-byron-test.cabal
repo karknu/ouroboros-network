@@ -49,6 +49,7 @@ library
 
                      , byron-spec-ledger
 
+                     , ouroboros-network-api
                      , ouroboros-network-mock
                      , ouroboros-network-protocols
                      , ouroboros-consensus

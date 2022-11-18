@@ -118,6 +118,7 @@ library
                      , io-classes
                      , io-sim
 
+                     , ouroboros-network-api
                      , ouroboros-network
                      , ouroboros-network-framework
                      , ouroboros-network-mock
@@ -189,6 +190,7 @@ test-suite test-consensus
                      , io-sim
                      , typed-protocols
                      , ouroboros-network
+                     , ouroboros-network-api
                      , ouroboros-network-framework
                      , ouroboros-network-mock
                      , ouroboros-network-protocols
@@ -276,7 +278,7 @@ test-suite test-storage
 
                      , io-classes
                      , io-sim
-                     , ouroboros-network
+                     , ouroboros-network-api
                      , ouroboros-network-mock
                      , ouroboros-network-protocols
                      , ouroboros-consensus

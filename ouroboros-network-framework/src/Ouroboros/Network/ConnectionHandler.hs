@@ -50,6 +50,7 @@ import           Data.Typeable (Typeable)
 import           Network.Mux hiding (miniProtocolNum)
 
 import           Ouroboros.Network.ConnectionId (ConnectionId (..))
+import           Ouroboros.Network.ControlMessage (ControlMessage (..))
 import           Ouroboros.Network.ConnectionManager.Types
 import           Ouroboros.Network.Mux
 import           Ouroboros.Network.MuxMode

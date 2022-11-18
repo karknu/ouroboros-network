@@ -61,11 +61,6 @@ library
                        Ouroboros.Network.Protocol.KeepAlive.Server
                        Ouroboros.Network.Protocol.KeepAlive.Codec
 
-                       Ouroboros.Network.AnchoredFragment
-                       Ouroboros.Network.AnchoredSeq
-                       Ouroboros.Network.Block
-                       Ouroboros.Network.Point
-
   default-language:    Haskell2010
   other-extensions:    BangPatterns,
                        DataKinds,
@@ -118,6 +113,7 @@ library
 
                        io-classes       ^>=0.3,
                        strict-stm       ^>=0.2,
+                       ouroboros-network-api,
                        ouroboros-network-framework,
                        typed-protocols   >=0.1 && <1.0,
                        typed-protocols-cborg

@@ -43,8 +43,8 @@ library
 
                        nothunks,
 
-                       ouroboros-network-protocols,
-                       ouroboros-network-framework
+                       ouroboros-network-api,
+                       ouroboros-network-protocols
 
   ghc-options:         -Wall
                        -Wno-unticked-promoted-constructors
