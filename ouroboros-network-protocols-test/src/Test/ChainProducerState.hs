@@ -20,8 +20,8 @@ import           Ouroboros.Network.Block (HasHeader, genesisPoint, pointSlot)
 import           Ouroboros.Network.Mock.Chain (Chain, ChainUpdate (..),
                      Point (..), headPoint, pointOnChain)
 import qualified Ouroboros.Network.Mock.Chain as Chain
-import           Ouroboros.Network.Mock.ProducerState
 import           Ouroboros.Network.Mock.ConcreteBlock (Block)
+import           Ouroboros.Network.Mock.ProducerState
 
 import           Test.ChainGenerators (TestBlockChain (..),
                      TestBlockChainAndUpdates (..), TestChainFork (..),

@@ -120,7 +120,7 @@ import           Ouroboros.Network.BlockFetch.ClientRegistry
                      readPeerGSVs, setFetchClientContext)
 import           Ouroboros.Network.BlockFetch.ConsensusInterface
                      (BlockFetchConsensusInterface (..), FromConsensus (..),
-                      WhetherReceivingTentativeBlocks (..))
+                     WhetherReceivingTentativeBlocks (..))
 import           Ouroboros.Network.BlockFetch.State
 
 

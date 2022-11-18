@@ -43,12 +43,13 @@ import           Ouroboros.Network.Point (withOriginToMaybe)
 
 import           Ouroboros.Network.BlockFetch.ClientState (FetchRequest (..),
                      PeerFetchInFlight (..), PeerFetchStatus (..))
+import           Ouroboros.Network.BlockFetch.ConsensusInterface
+                     (FetchMode (..))
 import           Ouroboros.Network.BlockFetch.DeltaQ
                      (PeerFetchInFlightLimits (..), PeerGSV (..), SizeInBytes,
                      calculatePeerFetchInFlightLimits, comparePeerGSV,
                      comparePeerGSV', estimateExpectedResponseDuration,
                      estimateResponseDeadlineProbability)
-import           Ouroboros.Network.BlockFetch.ConsensusInterface (FetchMode (..))
 
 
 data FetchDecisionPolicy header = FetchDecisionPolicy {

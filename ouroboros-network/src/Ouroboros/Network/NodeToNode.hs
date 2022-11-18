@@ -113,10 +113,10 @@ import           Network.Socket (Socket)
 import qualified Network.Socket as Socket
 
 import           Ouroboros.Network.BlockFetch.Client (BlockFetchProtocolFailure)
-import           Ouroboros.Network.ControlMessage (ControlMessage (..),
-                     ControlMessageSTM)
 import           Ouroboros.Network.ConnectionManager.Types
                      (ExceptionInHandler (..))
+import           Ouroboros.Network.ControlMessage (ControlMessage (..),
+                     ControlMessageSTM)
 import           Ouroboros.Network.Driver (TraceSendRecv (..))
 import           Ouroboros.Network.Driver.Limits (ProtocolLimitFailure (..))
 import           Ouroboros.Network.Driver.Simple (DecoderFailure)

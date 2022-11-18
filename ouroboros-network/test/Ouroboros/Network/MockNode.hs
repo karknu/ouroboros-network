@@ -51,9 +51,8 @@ import           Ouroboros.Network.Mock.Chain (Chain (..))
 import qualified Ouroboros.Network.Mock.Chain as Chain
 import           Ouroboros.Network.Mock.ConcreteBlock hiding (fixupBlock)
 import qualified Ouroboros.Network.Mock.ConcreteBlock as Concrete
-import           Ouroboros.Network.Mock.ProducerState
-                     (ChainProducerState (..), initChainProducerState,
-                     producerChain, switchFork)
+import           Ouroboros.Network.Mock.ProducerState (ChainProducerState (..),
+                     initChainProducerState, producerChain, switchFork)
 
 data NodeId = CoreId Int
             | RelayId Int

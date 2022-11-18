@@ -38,8 +38,7 @@ import           Ouroboros.Network.Block (BlockNo, Serialised (..),
                      wrapCBORinCBOR)
 import           Ouroboros.Network.Mock.Chain (Chain, Point)
 import qualified Ouroboros.Network.Mock.Chain as Chain
-import           Ouroboros.Network.Mock.ConcreteBlock (Block,
-                     BlockHeader (..))
+import           Ouroboros.Network.Mock.ConcreteBlock (Block, BlockHeader (..))
 import qualified Ouroboros.Network.Mock.ProducerState as ChainProducerState
 
 import           Ouroboros.Network.Protocol.ChainSync.Client

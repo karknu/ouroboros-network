@@ -60,8 +60,7 @@ import           Ouroboros.Network.Mock.Chain (Chain, toOldestFirst)
 import           Ouroboros.Network.Mock.ConcreteBlock (Block (..),
                      BlockHeader (..),
                      convertSlotToTimeForTestsAssumingNoHardFork)
-import           Ouroboros.Network.Mock.ProducerState
-                     (ChainProducerState (..))
+import           Ouroboros.Network.Mock.ProducerState (ChainProducerState (..))
 
 import qualified Ouroboros.Network.AnchoredFragment as AF
 import           Ouroboros.Network.Block (MaxSlotNo (..), Point,

@@ -1,5 +1,5 @@
-{-# LANGUAGE DefaultSignatures   #-}
-{-# LANGUAGE PolyKinds           #-}
+{-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE PolyKinds         #-}
 
 module Ouroboros.Network.Util.ShowProxy
   ( ShowProxy (..)

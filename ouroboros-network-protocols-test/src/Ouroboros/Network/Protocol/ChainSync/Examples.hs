@@ -21,8 +21,8 @@ import           Ouroboros.Network.Block (HasHeader (..), HeaderHash, Tip (..),
                      castPoint, castTip, genesisPoint)
 import           Ouroboros.Network.ControlMessage (ControlMessage (..),
                      ControlMessageSTM)
-import           Ouroboros.Network.Mock.Chain (Chain (..),
-                     ChainUpdate (..), Point (..))
+import           Ouroboros.Network.Mock.Chain (Chain (..), ChainUpdate (..),
+                     Point (..))
 import qualified Ouroboros.Network.Mock.Chain as Chain
 import           Ouroboros.Network.Mock.ProducerState (ChainProducerState,
                      FollowerId)

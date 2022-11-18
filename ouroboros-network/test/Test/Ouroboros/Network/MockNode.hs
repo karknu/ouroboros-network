@@ -37,8 +37,7 @@ import           Ouroboros.Network.Block
 import           Ouroboros.Network.Mock.Chain (Chain (..))
 import qualified Ouroboros.Network.Mock.Chain as Chain
 import           Ouroboros.Network.Mock.ConcreteBlock as ConcreteBlock
-import           Ouroboros.Network.Mock.ProducerState
-                     (ChainProducerState (..))
+import           Ouroboros.Network.Mock.ProducerState (ChainProducerState (..))
 
 import           Ouroboros.Network.MockNode
 

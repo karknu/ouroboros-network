@@ -43,10 +43,10 @@ import qualified Network.Socket as Socket
 import           System.Random
 
 import           Cardano.Slotting.Slot (SlotNo)
+import           Ouroboros.Network.PeerSelection.LedgerPeers.Type
+                     (AccPoolStake (..), PoolStake (..))
 import           Ouroboros.Network.PeerSelection.RootPeersDNS
                      (DomainAccessPoint (..), RelayAccessPoint (..))
-import           Ouroboros.Network.PeerSelection.LedgerPeers.Type
-                     (PoolStake (..), AccPoolStake (..))
 
 import           Text.Printf
 

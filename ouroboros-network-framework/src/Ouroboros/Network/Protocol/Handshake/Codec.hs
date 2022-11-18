@@ -47,10 +47,10 @@ import           Ouroboros.Network.Driver.Limits
 import           Ouroboros.Network.Protocol.Handshake.Type
 import           Ouroboros.Network.Protocol.Limits
 
-import           Ouroboros.Network.NodeToNode.Version (NodeToNodeVersion,
-                     nodeToNodeVersionCodec)
 import           Ouroboros.Network.NodeToClient.Version (NodeToClientVersion,
                      nodeToClientVersionCodec)
+import           Ouroboros.Network.NodeToNode.Version (NodeToNodeVersion,
+                     nodeToNodeVersionCodec)
 
 -- | Codec for version data ('vData' in code) exchanged by the handshake
 -- protocol.
