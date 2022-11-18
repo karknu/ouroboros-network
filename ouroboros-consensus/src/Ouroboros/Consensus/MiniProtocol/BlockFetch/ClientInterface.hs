@@ -25,7 +25,7 @@ import qualified Ouroboros.Network.AnchoredFragment as AF
 import           Ouroboros.Network.Block (MaxSlotNo)
 import           Ouroboros.Network.BlockFetch.ConsensusInterface
                      (BlockFetchConsensusInterface (..), FetchMode (..),
-                      FromConsensus (..), WhetherReceivingTentativeBlocks (..))
+                     FromConsensus (..), WhetherReceivingTentativeBlocks (..))
 import           Ouroboros.Network.SizeInBytes
 
 import           Ouroboros.Consensus.Block hiding (blockMatchesHeader)
