@@ -224,7 +224,7 @@ openDBInternal args launchBgTasks = runWithTempRegistry $ do
             , getLedgerBackingStoreValueHandle = \rreg p -> getEnv h $ \env' -> do
                 Query.getLedgerBackingStoreValueHandle env' rreg p
 
-            , getBackingStore       =       getEnv h (pure . LgrDB.lgrBackingStore . cdbLgrDB)
+            , getLedgerTablesAtFor  = \pt keys -> getEnv h (LgrDB.getLedgerTablesAtFor pt keys . cdbLgrDB)
             , withLgrReadLock       = \m -> getEnv h (flip LgrDB.withReadLock m    . cdbLgrDB)
             }
           testing = Internal

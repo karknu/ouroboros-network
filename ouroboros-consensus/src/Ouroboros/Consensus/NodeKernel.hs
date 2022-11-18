@@ -82,7 +82,6 @@ import qualified Ouroboros.Consensus.Storage.ChainDB.API.Types.InvalidBlockPunis
 import           Ouroboros.Consensus.Storage.ChainDB.Init (InitChainDB)
 import qualified Ouroboros.Consensus.Storage.ChainDB.Init as InitChainDB
 
-import Ouroboros.Consensus.Storage.LedgerDB.InMemory (ReadsKeySets)
 
 {-------------------------------------------------------------------------------
   Relay node
@@ -195,7 +194,8 @@ initInternalState
        , LedgerSupportsProtocol blk
        , Ord remotePeer
        , NoThunks remotePeer
-       , RunNode blk, ReadsKeySets m (ExtLedgerState blk))
+       , RunNode blk
+       )
     => NodeKernelArgs m remotePeer localPeer blk
     -> m (InternalState m remotePeer localPeer blk)
 initInternalState NodeKernelArgs { tracers, chainDB, registry, cfg

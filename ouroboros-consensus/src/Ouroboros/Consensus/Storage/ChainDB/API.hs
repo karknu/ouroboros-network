@@ -91,7 +91,7 @@ import           Ouroboros.Consensus.Storage.FS.API.Types (FsError)
 import           Ouroboros.Consensus.Storage.LedgerDB.InMemory (LedgerDB)
 import qualified Ouroboros.Consensus.Storage.LedgerDB.InMemory as LedgerDB
 import           Ouroboros.Consensus.Storage.LedgerDB.OnDisk
-                     (LedgerBackingStore, LedgerBackingStoreValueHandle,
+                     (LedgerBackingStoreValueHandle,
                      LedgerDB')
 import           Ouroboros.Consensus.Storage.Serialisation
 
@@ -365,6 +365,12 @@ data ChainDB m blk = ChainDB {
                  )
                )
 
+      -- | Read and forward the values up to the given point on the chain. Returns
+      -- Nothing if the anchor moved or if the state is not found on the ledger db.
+    , getLedgerTablesAtFor :: Point blk
+                           -> LedgerTables (ExtLedgerState blk) KeysMK
+                           -> m (Maybe (LedgerTables (ExtLedgerState blk) ValuesMK))
+
       -- | Close the ChainDB
       --
       -- Idempotent.
@@ -376,10 +382,6 @@ data ChainDB m blk = ChainDB {
       --
       -- 'False' when the database is closed.
     , isOpen             :: STM m Bool
-
-      -- | Return the backing store in the Ledger DB to be (for now at least)
-      -- used by the mempool.
-    , getBackingStore :: m (LedgerBackingStore m (ExtLedgerState blk))
 
       -- | Perform a monadic operation holding the read lock on the DB
       -- changelog.

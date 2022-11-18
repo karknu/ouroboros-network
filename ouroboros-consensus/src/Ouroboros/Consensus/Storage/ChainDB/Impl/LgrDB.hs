@@ -53,6 +53,7 @@ module Ouroboros.Consensus.Storage.ChainDB.Impl.LgrDB (
   , mkLgrDB
     -- * Temporarily exported
   , lgrBackingStore
+  , getLedgerTablesAtFor
   , streamAPI
   , streamAPI'
   ) where
@@ -92,7 +93,7 @@ import           Ouroboros.Consensus.Storage.LedgerDB.Types
 import           Ouroboros.Consensus.Storage.LedgerDB.DiskPolicy
                      (DiskPolicy (..))
 import           Ouroboros.Consensus.Storage.LedgerDB.InMemory (Ap (..),
-                     ExceededRollback (..), LedgerDbCfg (..))
+                     ExceededRollback (..), LedgerDbCfg (..), ledgerDbPrefix, getLedgerTablesFor)
 import qualified Ouroboros.Consensus.Storage.LedgerDB.InMemory as LedgerDB
 import           Ouroboros.Consensus.Storage.LedgerDB.OnDisk (AnnLedgerError',
                      BackingStoreSelector (..), DiskSnapshot,
@@ -377,6 +378,22 @@ flush LgrDB { varDB, lgrBackingStore } = do
       writeTVar varDB db'
       pure toFlush
     LedgerDB.flush lgrBackingStore toFlush
+
+-- | Read and forward the values up to the given point on the chain. Returns
+-- Nothing if the anchor moved or if the state is not found on the ledger db.
+getLedgerTablesAtFor ::
+  ( IOLike m
+  , LedgerSupportsProtocol blk
+  )
+  => Point blk
+  -> LedgerTables (ExtLedgerState blk) KeysMK
+  -> LgrDB m blk
+  -> m (Maybe (LedgerTables (ExtLedgerState blk) ValuesMK))
+getLedgerTablesAtFor pt keys LgrDB { varDB, lgrBackingStore } = do
+  lgrDb <- atomically $ readTVar varDB
+  case ledgerDbPrefix pt lgrDb of
+    Nothing -> pure Nothing
+    Just l  -> LedgerDB.defaultReadKeySets (LedgerDB.readKeySets lgrBackingStore) (getLedgerTablesFor l keys)
 
 {-------------------------------------------------------------------------------
   Validation

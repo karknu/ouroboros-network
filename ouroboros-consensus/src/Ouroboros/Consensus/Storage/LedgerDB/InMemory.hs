@@ -68,7 +68,7 @@ module Ouroboros.Consensus.Storage.LedgerDB.InMemory (
   , ExceededRollback (..)
   , ledgerDbPush
   , ledgerDbSwitch
-  , foo
+  , getLedgerTablesFor
     -- * Exports for the benefit of tests
     -- ** Additional queries
   , ledgerDbIsSaturated
@@ -344,11 +344,13 @@ applyBlock cfg ap db = case ap of
       .   withLedgerTables (ledgerDbCurrent db)
       <$> forwardTableKeySets (ledgerDbChangelog db) urs
 
-foo :: (Monad m, ReadsKeySets m l, TableStuff l)
+-- | Read and forward the values up to the tip of the given ledger db. Returns
+-- Nothing if the anchor moved.
+getLedgerTablesFor :: (Monad m, ReadsKeySets m l, TableStuff l)
     => LedgerDB l
     -> LedgerTables l KeysMK
     -> m (Maybe (LedgerTables l ValuesMK))
-foo db keys = do
+getLedgerTablesFor db keys = do
   let aks = rewindTableKeySets (ledgerDbChangelog db) keys
   urs <- readDb aks
   pure $ either (const Nothing) Just $ forwardTableKeySets (ledgerDbChangelog db) urs

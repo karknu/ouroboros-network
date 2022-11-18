@@ -135,40 +135,30 @@ data LedgerInterface m blk = LedgerInterface
     { -- | Get the current tip of the LedgerDB and the current changelog that
       -- allows us to forward values to that state.
       getCurrentLedgerAndChangelog :: STM m (LedgerState blk EmptyMK)
+      -- | Read and forward the values up to the given point on the chain. Returns
+      -- Nothing if the anchor moved or if the state is not found on the ledger db.
     , getLedgerTablesAtFor :: Point blk
-                           -> LedgerTables (LedgerState blk) KeysMK
+                           -> [GenTx blk]
                            -> m (Maybe (LedgerTables (LedgerState blk) ValuesMK))
-      -- | Wrapper for the DbChangelog flushing lock.
+    , -- | Wrapper for the DbChangelog flushing lock.
       --
       -- See 'Ouroboros.Consensus.Storage.ChainDB.Impl.LgrDB.withReadLock'
-    , withReadLock     :: forall a. m a -> m a
+      withReadLock     :: forall a. m a -> m a
     }
 
 -- | Create a 'LedgerInterface' from a 'ChainDB'.
 chainDbLedgerInterface ::
      ( IOLike m
      , LedgerSupportsMempool blk
-     , LedgerSupportsProtocol blk
-     , ReadsKeySets m (ExtLedgerState blk)
      )
   => ChainDB m blk -> LedgerInterface m blk
 chainDbLedgerInterface chainDB = LedgerInterface
     { getCurrentLedgerAndChangelog = ledgerState . ledgerDbCurrent <$> ChainDB.getLedgerDB chainDB
-    , getLedgerTablesAtFor = \pt keys -> ChainDB.withLgrReadLock chainDB $ do
-        ldb <- atomically $ ChainDB.getLedgerDB chainDB
-        case ledgerDbPrefix pt ldb of
-          Nothing -> pure Nothing
-          Just l  -> fmap unExtLedgerStateTables <$> foo l (ExtLedgerStateTables keys)
+    , getLedgerTablesAtFor = \pt txs -> ChainDB.withLgrReadLock chainDB $ do
+        let keys = ExtLedgerStateTables $ foldl' (zipLedgerTables (<>)) polyEmptyLedgerTables $ map getTransactionKeySets txs
+        fmap unExtLedgerStateTables <$> ChainDB.getLedgerTablesAtFor chainDB pt keys
     , withReadLock = ChainDB.withLgrReadLock chainDB
     }
-
-getTables :: LedgerSupportsMempool blk
-          => LedgerInterface m blk
-          -> Point blk
-          -> [GenTx blk]
-          -> m (Maybe (LedgerTables (LedgerState blk) ValuesMK))
-getTables LedgerInterface{getLedgerTablesAtFor} pt txs =
-  getLedgerTablesAtFor pt (getKeysForTxList txs)
 
 {-------------------------------------------------------------------------------
   Mempool environment
@@ -290,7 +280,7 @@ implTryAddTxs mpEnv wti =
       []            -> pure (reverse acc, [])
       txs@(tx:next) -> do
         is <- atomically $ takeTMVar istate
-        mTbs <- getTables ldgrInterface (isTip is) [tx]
+        mTbs <- getLedgerTablesAtFor ldgrInterface (isTip is) [tx]
         case mTbs of
           Nothing -> do
             -- We couldn't retrieve the values because the ledger state is no
@@ -337,7 +327,7 @@ implSyncWithLedger mpEnv = withReadLock ldgrInterface $ do
     Left snapshot -> pure snapshot
     -- Right means we have to revalidate
     Right (is, pt, slot, ls) -> do
-      mTbs <- getTables ldgrInterface pt [ txForgetValidated . TxSeq.txTicketTx $ tx | tx <- TxSeq.toList $ isTxs is ]
+      mTbs <- getLedgerTablesAtFor ldgrInterface pt [ txForgetValidated . TxSeq.txTicketTx $ tx | tx <- TxSeq.toList $ isTxs is ]
       case mTbs of
         Nothing -> error "implSyncWithLedger: Must not happen, read lock should be held"
         Just tbs -> do
@@ -377,7 +367,7 @@ implRemoveTxs mpEnv txs = withReadLock ldgrInterface $ do
                          )
                          (TxSeq.toList $ isTxs is)
         (slot, ticked) = tickLedgerState cfg (ForgeInUnknownSlot ls)
-    mTbs <- getTables ldgrInterface (castPoint (getTip ls)) [ txForgetValidated . TxSeq.txTicketTx $ tx | tx <- txs' ]
+    mTbs <- getLedgerTablesAtFor ldgrInterface (castPoint (getTip ls)) [ txForgetValidated . TxSeq.txTicketTx $ tx | tx <- txs' ]
     case mTbs of
       Nothing -> error "implSyncWithLedger: Must not happen, read lock should be held"
       Just tbs -> do
@@ -418,7 +408,7 @@ implGetSnapshotFor mpEnv slot pt ticked = do
   case res of
     Left snap -> pure snap
     Right is -> do
-      mTbs <- getTables ldgrInterface pt [ txForgetValidated . TxSeq.txTicketTx $ tx | tx <- TxSeq.toList $ isTxs is]
+      mTbs <- getLedgerTablesAtFor ldgrInterface pt [ txForgetValidated . TxSeq.txTicketTx $ tx | tx <- TxSeq.toList $ isTxs is]
       case mTbs of
         Nothing -> undefined
         Just tbs -> pure $ pureGetSnapshotFor capacityOverride cfg tbs is (ForgeInKnownSlot slot ticked)
@@ -428,47 +418,3 @@ implGetSnapshotFor mpEnv slot pt ticked = do
                , mpEnvLedger           = ldgrInterface
                , mpEnvCapacityOverride = capacityOverride
                } = mpEnv
-
-{-------------------------------------------------------------------------------
-  Helpers
--------------------------------------------------------------------------------}
-
--- -- | Run the continuation with the ledger tables after forwarding, calling error
--- -- if forwarding fails.
--- forward_ :: ( IOLike m
---             , LedgerSupportsMempool blk
---             )
---          => MempoolEnv m blk
---          -> [TxTicket (Validated (GenTx blk))] -- ^ Txs to retrieve values for
---          -> (LedgerTables (LedgerState blk) ValuesMK -> m a)
---          -> m a
--- forward_ env ch txs = fullForward
---                         env
---                         ch
---                         (map (txForgetValidated. txTicketTx) txs)
---                         (error "This must not happen: the read lock should be held!")
-
--- -- | Run one of the continuations with the forwarded ledger tables.
--- fullForward :: ( IOLike m
---                , LedgerSupportsMempool blk
---                )
---             => MempoolEnv m blk
---             -> [GenTx blk]
---             -> m a
---             -> (LedgerTables (LedgerState blk) ValuesMK -> m a)
---             -> m a
--- fullForward mpEnv dbch txs err ok = do
---   bkst <- getBackingStore (mpEnvLedger mpEnv)
---   let rew = RewoundTableKeySets (mcAnchor dbch) (ExtLedgerStateTables $ getKeysForTxList txs)
---   UnforwardedReadSets s vals keys <- defaultReadKeySets (readKeySets bkst) (readDb rew)
---   let ufs = UnforwardedReadSets s (unExtLedgerStateTables vals) (unExtLedgerStateTables keys)
---   case forwardTableKeySets' (mcAnchor dbch) (mcDifferences dbch) ufs of
---     Left _         -> err
---     Right fwValues -> ok fwValues
-
-getKeysForTxList :: LedgerSupportsMempool blk
-                 => [GenTx blk]
-                 -> LedgerTables (LedgerState blk) KeysMK
-getKeysForTxList =
-    foldl' (zipLedgerTables (<>)) polyEmptyLedgerTables
-  . map getTransactionKeySets
