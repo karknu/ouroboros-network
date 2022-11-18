@@ -68,6 +68,7 @@ module Ouroboros.Consensus.Storage.LedgerDB.InMemory (
   , ExceededRollback (..)
   , ledgerDbPush
   , ledgerDbSwitch
+  , foo
     -- * Exports for the benefit of tests
     -- ** Additional queries
   , ledgerDbIsSaturated
@@ -342,6 +343,15 @@ applyBlock cfg ap db = case ap of
           f
       .   withLedgerTables (ledgerDbCurrent db)
       <$> forwardTableKeySets (ledgerDbChangelog db) urs
+
+foo :: (Monad m, ReadsKeySets m l, TableStuff l)
+    => LedgerDB l
+    -> LedgerTables l KeysMK
+    -> m (Maybe (LedgerTables l ValuesMK))
+foo db keys = do
+  let aks = rewindTableKeySets (ledgerDbChangelog db) keys
+  urs <- readDb aks
+  pure $ either (const Nothing) Just $ forwardTableKeySets (ledgerDbChangelog db) urs
 
 {-------------------------------------------------------------------------------
   HD Interface that I need (Could be moved to  Ouroboros.Consensus.Ledger.Basics )

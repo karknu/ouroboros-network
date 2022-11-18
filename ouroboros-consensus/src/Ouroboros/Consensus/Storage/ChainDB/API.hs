@@ -77,7 +77,6 @@ import           Ouroboros.Consensus.HeaderStateHistory
 import           Ouroboros.Consensus.Ledger.Abstract
 import           Ouroboros.Consensus.Ledger.Extended
 import           Ouroboros.Consensus.Ledger.SupportsProtocol
-import           Ouroboros.Consensus.Mempool.Impl.Types (MempoolChangelog (..))
 import           Ouroboros.Consensus.Util (StaticEither (..), (..:))
 import           Ouroboros.Consensus.Util.CallStack
 import           Ouroboros.Consensus.Util.IOLike
@@ -89,8 +88,7 @@ import           Ouroboros.Consensus.Storage.ChainDB.API.Types.InvalidBlockPunis
 import qualified Ouroboros.Consensus.Storage.ChainDB.API.Types.InvalidBlockPunishment as InvalidBlockPunishment
 import           Ouroboros.Consensus.Storage.Common
 import           Ouroboros.Consensus.Storage.FS.API.Types (FsError)
-import           Ouroboros.Consensus.Storage.LedgerDB.InMemory
-                     (LedgerDB (ledgerDbChangelog))
+import           Ouroboros.Consensus.Storage.LedgerDB.InMemory (LedgerDB)
 import qualified Ouroboros.Consensus.Storage.LedgerDB.InMemory as LedgerDB
 import           Ouroboros.Consensus.Storage.LedgerDB.OnDisk
                      (LedgerBackingStore, LedgerBackingStoreValueHandle,
@@ -417,15 +415,9 @@ getPastLedger ::
      (Monad (STM m), LedgerSupportsProtocol blk)
   => ChainDB m blk
   -> Point blk
-  -> STM m (Maybe ( ExtLedgerState blk EmptyMK, MempoolChangelog blk))
-getPastLedger db pt = do
-  mldb <- LedgerDB.ledgerDbPrefix pt <$> getLedgerDB db
-  pure $ fmap (\l -> ( LedgerDB.ledgerDbCurrent l
-                     , let c = ledgerDbChangelog l
-                       in MempoolChangelog
-                            (changelogDiffAnchor c)
-                            (unExtLedgerStateTables $ changelogDiffs c)))
-         mldb
+  -> STM m (Maybe (ExtLedgerState blk EmptyMK))
+getPastLedger db pt =
+  fmap LedgerDB.ledgerDbCurrent <$> LedgerDB.ledgerDbPrefix pt <$> getLedgerDB db
 
 -- | Get a 'HeaderStateHistory' populated with the 'HeaderState's of the
 -- last @k@ blocks of the current chain.

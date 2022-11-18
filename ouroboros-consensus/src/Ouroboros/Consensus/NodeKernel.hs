@@ -82,6 +82,8 @@ import qualified Ouroboros.Consensus.Storage.ChainDB.API.Types.InvalidBlockPunis
 import           Ouroboros.Consensus.Storage.ChainDB.Init (InitChainDB)
 import qualified Ouroboros.Consensus.Storage.ChainDB.Init as InitChainDB
 
+import Ouroboros.Consensus.Storage.LedgerDB.InMemory (ReadsKeySets)
+
 {-------------------------------------------------------------------------------
   Relay node
 -------------------------------------------------------------------------------}
@@ -92,7 +94,7 @@ data NodeKernel m remotePeer localPeer blk = NodeKernel {
       getChainDB             :: ChainDB m blk
 
       -- | The node's mempool
-    , getMempool             :: Mempool m blk TicketNo
+    , getMempool             :: Mempool m blk
 
       -- | The node's top-level static configuration
     , getTopLevelConfig      :: TopLevelConfig blk
@@ -184,7 +186,7 @@ data InternalState m remotePeer localPeer blk = IS {
     , blockFetchInterface :: BlockFetchConsensusInterface remotePeer (Header blk) blk m
     , fetchClientRegistry :: FetchClientRegistry remotePeer (Header blk) blk m
     , varCandidates       :: StrictTVar m (Map remotePeer (StrictTVar m (AnchoredFragment (Header blk))))
-    , mempool             :: Mempool m blk TicketNo
+    , mempool             :: Mempool m blk
     }
 
 initInternalState
@@ -193,8 +195,7 @@ initInternalState
        , LedgerSupportsProtocol blk
        , Ord remotePeer
        , NoThunks remotePeer
-       , RunNode blk
-       )
+       , RunNode blk, ReadsKeySets m (ExtLedgerState blk))
     => NodeKernelArgs m remotePeer localPeer blk
     -> m (InternalState m remotePeer localPeer blk)
 initInternalState NodeKernelArgs { tracers, chainDB, registry, cfg
@@ -304,7 +305,7 @@ forkBlockForging IS{..} blockForging =
           -- produce a block that fits onto the ledger we got above; if the
           -- ledger in the meantime changes, the block we produce here may or
           -- may not be adopted, but it won't be invalid.
-          (unticked, dbch) <- do
+          unticked <- do
             mExtLedger <- lift $ atomically $ ChainDB.getPastLedger chainDB bcPrevPoint
             case mExtLedger of
               Just val -> return val
@@ -398,8 +399,8 @@ forkBlockForging IS{..} blockForging =
           mempoolSnapshot <- lift $ getSnapshotFor
                              mempool
                              currentSlot
+                             (castPoint $ getTip unticked)
                              tickedLedgerState
-                             dbch
 
           pure ( mempoolSnapshot
                , bcPrevPoint
@@ -438,7 +439,7 @@ forkBlockForging IS{..} blockForging =
 
             trace $ TraceForgedBlock
                       currentSlot
-                      (ledgerTipPoint (Proxy @blk) (ledgerState unticked))
+                      (ledgerTipPoint (ledgerState unticked))
                       newBlock
                       (snapshotMempoolSize mempoolSnapshot)
 
@@ -587,7 +588,7 @@ getMempoolReader
      , IOLike m
      , HasTxId (GenTx blk)
      )
-  => Mempool m blk TicketNo
+  => Mempool m blk
   -> TxSubmissionMempoolReader (GenTxId blk) (Validated (GenTx blk)) TicketNo m
 getMempoolReader mempool = MempoolReader.TxSubmissionMempoolReader
     { mempoolZeroIdx     = zeroTicketNo
@@ -595,7 +596,7 @@ getMempoolReader mempool = MempoolReader.TxSubmissionMempoolReader
     }
   where
     convertSnapshot
-      :: MempoolSnapshot               blk                                   TicketNo
+      :: MempoolSnapshot               blk
       -> MempoolReader.MempoolSnapshot (GenTxId blk) (Validated (GenTx blk)) TicketNo
     convertSnapshot MempoolSnapshot { snapshotTxsAfter, snapshotLookupTx,
                                       snapshotHasTx } =
@@ -613,7 +614,7 @@ getMempoolWriter
      , IOLike m
      , HasTxId (GenTx blk)
      )
-  => Mempool m blk TicketNo
+  => Mempool m blk
   -> TxSubmissionMempoolWriter (GenTxId blk) (GenTx blk) TicketNo m
 getMempoolWriter mempool = Inbound.TxSubmissionMempoolWriter
     { Inbound.txId          = txId
