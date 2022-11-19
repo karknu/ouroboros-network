@@ -76,8 +76,12 @@ jobs:
       if: runner.os == 'Windows'
       run: echo "cabal-store=$(dirname $(cabal --help | tail -1 | tr -d ' '))\\store" >> $GITHUB_OUTPUT     
 
-    - name: Set cache version
-      run: echo "CACHE_VERSION=20220919" >> $GITHUB_ENV
+    - name: "[OUTPUT] cache keys: version, weeknum"
+      id: cache-keys
+      shell: bash
+      run: |
+        echo "weeknum=$(/usr/bin/date -u "+%W")" >> $GITHUB_OUTPUT
+        echo "CACHE_VERSION=20220919" >> $GITHUB_OUTPUT
 
     - name: "LINUX: Install build environment (apt-get)"
       if: runner.os == 'Linux'
@@ -133,16 +137,13 @@ jobs:
         cabal build all --dry-run
         cat dist-newstyle/cache/plan.json | jq -r '."install-plan"[].id' | sort | uniq > dependencies.txt
 
-    - name: "OUTPUT Record weeknum"
-      shell: bash
-      run: echo "weeknum=$(/usr/bin/date -u "+%W")" >> $GITHUB_OUTPUT
 
     - uses: actions/cache@v3
       name: "Cache `cabal store`"
       with:
         path: ${{ runner.os == 'Windows' && steps.win-setup-haskell.outputs.cabal-store || steps.setup-haskell.outputs.cabal-store }}
-        key: cache-dependencies-${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('dependencies.txt') }}
-        restore-keys: cache-dependencies-${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}
+        key: cache-dependencies-${{ steps.cache-keys.outputs.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('dependencies.txt') }}
+        restore-keys: cache-dependencies-${{ steps.cache-keys.outputs.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}
 
     - uses: actions/cache@v3
       name: "Cache `dist-newstyle`"
@@ -150,8 +151,8 @@ jobs:
         path: |
           dist-newstyle
           !dist-newstyle/**/.git
-        key: cache-dist-${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}-${{ steps.record-deps.outputs.weeknum }}
-        restore-keys: cache-dist-${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}
+        key: cache-dist-${{ steps.cache-keys.outputs.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}-${{ steps.cache-keys.outputs.weeknum }}
+        restore-keys: cache-dist-${{ steps.cache-keys.outputs.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}
 
     - name: Build dependencies
       run: cabal build --only-dependencies all -j
