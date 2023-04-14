@@ -598,22 +598,20 @@ withPeerStateActions PeerStateActionsArguments {
           WithSomeProtocolTemperature (WithHot MiniProtocolError{}) -> do
             -- current `pchPeerStatus` must be 'HotPeer'
             traceWith spsTracer (PeerStatusChanged (HotToCold pchConnectionId))
-            void $ atomically (updateUnlessCold pchPeerStatus PeerCold)
+            cleanUp
           WithSomeProtocolTemperature (WithWarm MiniProtocolError{}) -> do
             -- current `pchPeerStatus` must be 'WarmPeer'
             traceWith spsTracer (PeerStatusChanged (WarmToCold pchConnectionId))
-            void $ atomically (updateUnlessCold pchPeerStatus PeerCold)
+            cleanUp
           WithSomeProtocolTemperature (WithEstablished MiniProtocolError{}) -> do
             -- update 'pchPeerStatus' and log (as the two other transition to
             -- cold state.
-            state <- atomically $ do
-              peerState <- readTVar pchPeerStatus
-              _  <- updateUnlessCold pchPeerStatus PeerCold
-              pure peerState
+            state <- atomically $ readTVar pchPeerStatus
             case state of
               PeerCold -> return ()
               PeerWarm -> traceWith spsTracer (PeerStatusChanged (WarmToCold pchConnectionId))
               PeerHot  -> traceWith spsTracer (PeerStatusChanged (HotToCold pchConnectionId))
+            cleanUp
 
           --
           -- Successful termination
@@ -636,6 +634,33 @@ withPeerStateActions PeerStateActionsArguments {
           WithSomeProtocolTemperature (WithEstablished MiniProtocolSuccess {}) ->
             closePeerConnection pch
 
+      where
+        -- In order to avoid the risk that the governor re-promotes a failed peer before
+        -- all the existing miniprotocols have had a chance to exit we wait for
+        -- all miniprotocols to exit for at most 'spsCloseConnectionTimeout' seconds.
+        -- After that the peer is marked as 'PeerCold.
+        cleanUp :: m ()
+        cleanUp = do
+          res <-
+            timeout spsCloseConnectionTimeout
+                    (atomically $
+                    (\a b c -> a <> b <> c)
+                        <$> awaitAllResults SingHot pchAppHandles
+                        <*> awaitAllResults SingWarm pchAppHandles
+                        <*> awaitAllResults SingEstablished pchAppHandles)
+          case res of
+               Nothing -> do
+                 state <- atomically $ readTVar pchPeerStatus
+                 case state of
+                      PeerCold -> return ()
+                      PeerWarm -> traceWith spsTracer (PeerStatusChangeFailure
+                                      (WarmToCold pchConnectionId)
+                                      TimeoutError)
+                      PeerHot  -> traceWith spsTracer (PeerStatusChangeFailure
+                                      (HotToCold pchConnectionId)
+                                      TimeoutError)
+               Just _ -> return ()
+          void $ atomically (updateUnlessCold pchPeerStatus PeerCold)
 
 
     establishPeerConnection :: JobPool () m (Maybe SomeException)
