@@ -118,6 +118,7 @@ data FetchDecline =
    | FetchDeclineInFlightThisPeer
    | FetchDeclineInFlightOtherPeer
    | FetchDeclinePeerShutdown
+   | FetchDeclinePeerStarting
    | FetchDeclinePeerSlow
    | FetchDeclineReqsInFlightLimit  !Word
    | FetchDeclineBytesInFlightLimit !SizeInBytes !SizeInBytes !SizeInBytes
@@ -560,6 +561,7 @@ filterNotAlreadyInFlightWithOtherPeers FetchModeBulkSync chains =
       Set.unions
         [ case status of
             PeerFetchStatusShutdown -> Set.empty
+            PeerFetchStatusStarting -> Set.empty
             PeerFetchStatusAberrant -> Set.empty
             _other                  -> peerFetchBlocksInFlight inflight
         | (_, status, inflight, _) <- chains ]
@@ -921,6 +923,9 @@ fetchRequestDecision _ _ _ _ _ _ (Left decline)
 
 fetchRequestDecision _ _ _ _ _ PeerFetchStatusShutdown _
   = Left FetchDeclinePeerShutdown
+
+fetchRequestDecision _ _ _ _ _ PeerFetchStatusStarting _
+  = Left FetchDeclinePeerStarting
 
 fetchRequestDecision _ _ _ _ _ PeerFetchStatusAberrant _
   = Left FetchDeclinePeerSlow
