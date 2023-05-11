@@ -2084,6 +2084,10 @@ prop_governor_target_active_local_below env =
         govActivePeersSig =
           selectGovState Governor.activePeers events
 
+        envTargetsSig :: Signal Int
+        envTargetsSig =
+          selectEnvTargets targetNumberOfActivePeers events
+
         govActiveFailuresSig :: Signal (Set PeerAddr)
         govActiveFailuresSig =
             Signal.keyedLinger
@@ -2113,21 +2117,25 @@ prop_governor_target_active_local_below env =
 
         promotionOpportunities :: Signal (Set PeerAddr)
         promotionOpportunities =
-          (\local established active recentFailures ->
-              Set.unions
-                [ -- There are no opportunities if we're at or above target
-                  if Set.size groupActive >= target
-                     then Set.empty
-                     else groupEstablished Set.\\ active
-                                           Set.\\ recentFailures
-                | (target, group) <- LocalRootPeers.toGroupSets local
-                , let groupActive      = group `Set.intersection` active
-                      groupEstablished = group `Set.intersection` established
-                ]
+          (\local established active recentFailures targetActice ->
+              if Set.size (active `Set.intersection` (LocalRootPeers.keysSet local)) >= targetActice
+                 then Set.empty -- all available active slots are already used by local roots
+                 else
+                   Set.unions
+                     [ -- There are no opportunities if we're at or above target
+                       if Set.size groupActive >= target
+                         then Set.empty
+                         else groupEstablished Set.\\ active
+                                               Set.\\ recentFailures
+                     | (target, group) <- LocalRootPeers.toGroupSets local
+                     , let groupActive      = group `Set.intersection` active
+                           groupEstablished = group `Set.intersection` established
+                     ]
           ) <$> govLocalRootPeersSig
             <*> govEstablishedPeersSig
             <*> govActivePeersSig
             <*> govActiveFailuresSig
+            <*> envTargetsSig
 
         promotionOpportunitiesIgnoredTooLong :: Signal (Set PeerAddr)
         promotionOpportunitiesIgnoredTooLong =
@@ -2164,9 +2172,13 @@ prop_governor_target_active_local_above env =
         govActivePeersSig =
           selectGovState Governor.activePeers events
 
+        envTargetsSig :: Signal Int
+        envTargetsSig =
+          selectEnvTargets targetNumberOfActivePeers events
+
         deomotionOpportunities :: Signal (Set PeerAddr)
         deomotionOpportunities =
-          (\local active ->
+          (\local active targetActice ->
               Set.unions
                 [ -- There are no opportunities if we're at or below target
                   if Set.size groupActive <= target
@@ -2174,9 +2186,14 @@ prop_governor_target_active_local_above env =
                      else groupActive
                 | (target, group) <- LocalRootPeers.toGroupSets local
                 , let groupActive = group `Set.intersection` active
-                ]
+                ] <> (if Set.size (active `Set.intersection` (LocalRootPeers.keysSet local)) >
+                           targetActice
+                         then LocalRootPeers.keysSet local
+                         else Set.empty
+                     )
           ) <$> govLocalRootPeersSig
             <*> govActivePeersSig
+            <*> envTargetsSig
 
         demotionOpportunitiesIgnoredTooLong :: Signal (Set PeerAddr)
         demotionOpportunitiesIgnoredTooLong =
