@@ -103,7 +103,10 @@ belowTargetLocal actions
 
       let selectedToPromote' :: Map peeraddr peerconn
           selectedToPromote' = EstablishedPeers.toMap establishedPeers
-                                 `Map.restrictKeys` selectedToPromote
+                                 -- Note that in case we are over the number of peers to promote we
+                                 -- give preferential treatment to the first numLocalPeersToPromote
+                                 -- which may not be the most decerving.
+                                 `Map.restrictKeys` (Set.take numLocalPeersToPromote selectedToPromote)
       return $ \_now -> Decision {
         decisionTrace = [TracePromoteWarmLocalPeers
                            [ (target, Set.size membersActive)
@@ -143,6 +146,7 @@ belowTargetLocal actions
 
     numLocalActivePeers       = Set.size localActivePeers
     numLocalPromoteInProgress = Set.size localPromotionInProgress
+    numLocalPeersToPromote    = targetNumberOfActivePeers - numLocalActivePeers - numLocalPromoteInProgress
 
     groupsBelowTarget =
       [ (target, members, membersActive)
