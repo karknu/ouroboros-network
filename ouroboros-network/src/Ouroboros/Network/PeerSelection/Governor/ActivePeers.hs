@@ -55,10 +55,16 @@ belowTargetLocal actions
                    establishedPeers,
                    activePeers,
                    inProgressPromoteWarm,
-                   inProgressDemoteWarm
+                   inProgressDemoteWarm,
+                   targets = PeerSelectionTargets {
+                                  targetNumberOfActivePeers
+                              }
                  }
+    -- We may want to use all available number of active peers for local peers
+    -- but we still don't want to go over the configured target.
+  | numLocalActivePeers + numLocalPromoteInProgress < targetNumberOfActivePeers
     -- Are there any groups of local peers that are below target?
-  | not (null groupsBelowTarget)
+  , not (null groupsBelowTarget)
     -- We need this detailed check because it is not enough to check we are
     -- below an aggregate target. We can be above target for some groups
     -- and below for others.
@@ -128,6 +134,16 @@ belowTargetLocal actions
   | otherwise
   = GuardedSkip Nothing
   where
+    localRootPeersSet          = LocalRootPeers.keysSet localRootPeers
+    localActivePeers           = activePeers
+                                  `Set.intersection` localRootPeersSet
+    localPromotionInProgress   = inProgressPromoteWarm
+                                  `Set.intersection` localRootPeersSet
+
+
+    numLocalActivePeers       = Set.size localActivePeers
+    numLocalPromoteInProgress = Set.size localPromotionInProgress
+
     groupsBelowTarget =
       [ (target, members, membersActive)
       | (target, members) <- LocalRootPeers.toGroupSets localRootPeers
@@ -346,9 +362,12 @@ aboveTargetLocal actions
                    localRootPeers,
                    establishedPeers,
                    activePeers,
-                   inProgressDemoteHot
+                   inProgressDemoteHot,
+                   targets = PeerSelectionTargets {
+                                 targetNumberOfActivePeers
+                             }
                  }
-    -- Are there any groups of local peers that are below target?
+    -- Are there any groups of local peers that are above target?
   | let groupsAboveTarget =
           [ (target, members, membersActive)
           | (target, members) <- LocalRootPeers.toGroupSets localRootPeers
@@ -367,7 +386,6 @@ aboveTargetLocal actions
                                        `Set.intersection`
                                      activePeers)
                                        Set.\\ inProgressDemoteHot
-                numDemoteInProgress = Set.size inProgressDemoteHot
           , not (Set.null availableToDemote)
           , (target, members, membersActive) <- groupsAboveTarget
           , let membersAvailableToDemote = Set.intersection
@@ -405,8 +423,45 @@ aboveTargetLocal actions
                         | (peeraddr, peerconn) <- Map.assocs selectedToDemote' ]
       }
 
+    -- If we are still above target and there are no non-local peers to demote we
+    -- have to pick some local peers.
+  | numLocalPeersToDemote > 0 && numNonLocalActivePeers == 0
+  = Guarded Nothing $ do
+    let numPeersToDemote = targetNumberOfActivePeers - numNonLocalActivePeers - numDemoteInProgress
+        availableToDemote = (LocalRootPeers.keysSet localRootPeers
+                                       `Set.intersection`
+                                     activePeers)
+                                       Set.\\ inProgressDemoteHot
+    selectedToDemote <- pickPeers st policyPickHotPeersToDemote availableToDemote numPeersToDemote
+
+    let selectedToDemote' :: Map peeraddr peerconn
+        selectedToDemote' = EstablishedPeers.toMap establishedPeers
+    return $ \_now -> Decision {
+        decisionTrace = [TraceDemoteLocalHotPeers
+                           []
+                           selectedToDemote],
+        decisionState = st {
+                          inProgressDemoteHot = inProgressDemoteHot
+                                             <> selectedToDemote
+                        },
+        decisionJobs  = [ jobDemoteActivePeer actions policy peeraddr peerconn
+                        | (peeraddr, peerconn) <- Map.assocs selectedToDemote' ]
+     }
+
+
   | otherwise
   = GuardedSkip Nothing
+
+ where
+    localRootPeersSet          = LocalRootPeers.keysSet localRootPeers
+    localActivePeers           = activePeers
+                                  `Set.intersection` localRootPeersSet
+
+    numLocalActivePeers       = Set.size localActivePeers
+    numNonLocalActivePeers    = Set.size activePeers - numLocalActivePeers
+    numDemoteInProgress       = Set.size inProgressDemoteHot
+    numLocalPeersToDemote     = numLocalActivePeers - targetNumberOfActivePeers - numDemoteInProgress
+
 
 
 aboveTargetOther :: forall peeraddr peerconn m.
