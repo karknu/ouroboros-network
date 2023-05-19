@@ -572,13 +572,13 @@ peerSelectionGovernorLoop tracer
       <> Monitor.localRoots           actions policy st
 
       -- All the alternative non-blocking internal decisions.
-      <> RootPeers.belowTarget        actions blockedAt         st
-      <> KnownPeers.belowTarget       actions peerSharing policy st
-      <> KnownPeers.aboveTarget                           policy st
-      <> EstablishedPeers.belowTarget actions             policy st
-      <> EstablishedPeers.aboveTarget actions             policy st
       <> ActivePeers.belowTarget      actions             policy st
       <> ActivePeers.aboveTarget      actions             policy st
+      <> EstablishedPeers.belowTarget actions             policy st
+      <> EstablishedPeers.aboveTarget actions             policy st
+      <> KnownPeers.belowTarget       actions peerSharing policy st
+      <> KnownPeers.aboveTarget                           policy st
+      <> RootPeers.belowTarget        actions blockedAt          st
 
       -- There is no rootPeersAboveTarget since the roots target is one sided.
 
