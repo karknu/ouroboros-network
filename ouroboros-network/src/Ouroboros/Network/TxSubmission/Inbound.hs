@@ -333,9 +333,18 @@ txSubmissionInbound tracer maxUnacked mpReader mpWriter _version =
             (acknowledgedTxIds, unacknowledgedTxIds') =
               Seq.spanl (`Map.member` bufferedTxs1) (unacknowledgedTxIds st)
 
+        -- Filter out TXs that are not already in the mempool
+        -- Even though we make sure to not fetch TXs that are known to be in the mempool
+        -- we still might fetch the same TXs from multiple sources.
+        -- Attempting to add the same TX twice is a costly operation that can never
+        -- succeed so it is worth this step to avoid doing it.
+        mpSnapshot <- atomically mempoolGetSnapshot
+        let freshTxIds = filter (not . mempoolHasTx mpSnapshot)
+                                (foldr (:) [] acknowledgedTxIds)
+
             -- If so we can submit the acknowledged txs to our local mempool
-            txsReady = foldr (\txid r -> maybe r (:r) (bufferedTxs1 Map.! txid))
-                             [] acknowledgedTxIds
+        let txsReady = foldr (\txid r -> maybe r (:r) (bufferedTxs1 Map.! txid))
+                             [] freshTxIds
 
             -- And remove acknowledged txs from our buffer
             bufferedTxs2 = foldl' (flip Map.delete)
