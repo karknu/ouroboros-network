@@ -208,8 +208,8 @@ firstPeerPromotedToWarm
               StatusRunning       -> return $ AwakeRemote connId
 
 
--- | Detect when a first warm peer is promoted to hot (all hot mini-protocols
--- run running).
+-- | Detect when a first warm peer is promoted to hot (any hot mini-protocols
+-- is running).
 --
 firstPeerPromotedToHot :: forall muxMode peerAddr versionData m a b.
                           ( Alternative (STM m)
@@ -221,13 +221,11 @@ firstPeerPromotedToHot
    = case csRemoteState of
        RemoteHot     -> mempty
        RemoteWarm    ->
-           lastToFirstM
-         . fmap (const $ RemotePromotedToHot connId)
+         fmap (const $ RemotePromotedToHot connId)
          $ foldMap fn
              (hotMiniProtocolStateMap connState)
        RemoteCold    ->
-           lastToFirstM
-         . fmap (const $ RemotePromotedToHot connId)
+         fmap (const $ RemotePromotedToHot connId)
          $ foldMap fn
              (hotMiniProtocolStateMap connState)
        RemoteIdle {} -> mempty
@@ -251,16 +249,16 @@ firstPeerPromotedToHot
        )
 
     fn :: STM m MiniProtocolStatus
-       -> LastToFinishM (STM m) ()
+       -> FirstToFinish (STM m) ()
     fn miniProtocolStatus =
-      LastToFinishM $
+      FirstToFinish $
         miniProtocolStatus >>= \case
           StatusIdle          -> retry
           StatusStartOnDemand -> retry
           StatusRunning       -> return ()
 
 
--- | Detect when a first hot mini-protocols terminates, which triggers the
+-- | Detect when all hot mini-protocols terminates, which triggers the
 -- `RemoteHot → RemoteWarm` transition.
 --
 firstPeerDemotedToWarm :: forall muxMode peerAddr versionData m a b.
@@ -272,6 +270,7 @@ firstPeerDemotedToWarm
     connId connState@ConnectionState { csRemoteState }
     = case csRemoteState of
         RemoteHot ->
+           lastToFirstM $
               RemoteDemotedToWarm connId <$ foldMap fn (hotMiniProtocolStateMap connState)
 
         _  -> mempty
@@ -295,9 +294,9 @@ firstPeerDemotedToWarm
        )
 
     fn :: STM m MiniProtocolStatus
-       -> FirstToFinish (STM m) ()
+       -> LastToFinishM (STM m) ()
     fn miniProtocolStatus =
-      FirstToFinish $
+      LastToFinishM $
         miniProtocolStatus >>= \case
           StatusIdle          -> return ()
           StatusStartOnDemand -> return ()
