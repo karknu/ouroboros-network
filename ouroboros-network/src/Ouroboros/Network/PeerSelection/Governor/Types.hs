@@ -461,12 +461,11 @@ toPublicState :: Ord peeraddr
 toPublicState PeerSelectionState { knownPeers
                                  , establishedPeers
                                  } =
-  let availableNow = EstablishedPeers.availableForPeerShare establishedPeers
-      availableNowWithPermission =
-        Set.filter (`KnownPeers.canPeerShareRequest` knownPeers) availableNow
-   in PublicPeerSelectionState {
-        availableToShare = availableNowWithPermission
-      }
+   PublicPeerSelectionState {
+     availableToShare =
+         Set.filter (`KnownPeers.canSharePeers` knownPeers)
+       $ EstablishedPeers.availableForPeerShare establishedPeers
+   }
 
 -- Peer selection counters.
 --

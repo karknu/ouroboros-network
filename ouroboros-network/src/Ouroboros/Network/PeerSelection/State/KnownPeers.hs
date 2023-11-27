@@ -28,6 +28,8 @@ module Ouroboros.Network.PeerSelection.State.KnownPeers
     -- ** Selecting peers to ask
   , canPeerShareRequest
   , getAvailablePeerSharingPeers
+    -- * Selecting peers to share
+  , canSharePeers
     -- ** Filtering ledger peers
   , isKnownLedgerPeer
   ) where
@@ -378,13 +380,22 @@ setConnectTimes times
 --
 
 -- Only make Peer Share requests to peers which wish to participate in
--- PeerSharing, i.e. have non-'NoPeerSharing' PeerSharing values.
+-- PeerSharing, i.e. have non-'NoPeerSharing' 'PeerSharing' values.
 --
 canPeerShareRequest :: Ord peeraddr => peeraddr -> KnownPeers peeraddr -> Bool
 canPeerShareRequest pa KnownPeers { allPeers } =
   case Map.lookup pa allPeers of
     Just (KnownPeerInfo _ _ PeerSharingEnabled _ _) -> True
     _                                               -> False
+
+-- Only share peers which are allowed to be advertised, i.e. have
+-- 'DoAdvertisePeer' 'PeerAdvertise' values.
+--
+canSharePeers :: Ord peeraddr => peeraddr -> KnownPeers peeraddr -> Bool
+canSharePeers pa KnownPeers { allPeers } =
+  case Map.lookup pa allPeers of
+    Just (KnownPeerInfo _ _ _ DoAdvertisePeer _) -> True
+    _                                            -> False
 
 -- Filter available for Peer Sharing peers according to their PeerSharing
 -- information
