@@ -8,6 +8,7 @@
 ### Non-breaking changes
 
 * Fix random selection of peers to peershare with.
+* Fixed bug where peers with 'DoNotAdvertisePeer' flag were being shared
 
 ## 0.10.0.1 -- 2023-11-16
 
