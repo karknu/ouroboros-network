@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE NamedFieldPuns      #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -27,9 +28,10 @@ module Ouroboros.Network.PeerSelection.State.KnownPeers
   , availableToConnect
     -- ** Selecting peers to ask
   , canPeerShareRequest
-  , getAvailablePeerSharingPeers
+  , getPeerSharingRequestPeers
     -- * Selecting peers to share
   , canSharePeers
+  , getPeerSharingResponsePeers
     -- ** Filtering ledger peers
   , isKnownLedgerPeer
   ) where
@@ -397,15 +399,28 @@ canSharePeers pa KnownPeers { allPeers } =
     Just (KnownPeerInfo _ _ _ DoAdvertisePeer _) -> True
     _                                            -> False
 
--- Filter available for Peer Sharing peers according to their PeerSharing
--- information
+-- | Filter peers available for Peer Sharing requests, according to their
+-- 'PeerSharing' information
 --
-getAvailablePeerSharingPeers :: Ord peeraddr
-                             => Set peeraddr
-                             -> KnownPeers peeraddr
-                             -> Set peeraddr
-getAvailablePeerSharingPeers availableForPeerShare knownPeers =
+getPeerSharingRequestPeers :: Ord peeraddr
+                           => Set peeraddr
+                           -> KnownPeers peeraddr
+                           -> Set peeraddr
+getPeerSharingRequestPeers availableForPeerShare knownPeers =
   Set.filter (`canPeerShareRequest` knownPeers) availableForPeerShare
+
+-- | Filter peers available for Peer Sharing replies, according to their
+-- 'PeerAdvertise' information
+--
+getPeerSharingResponsePeers :: KnownPeers peeraddr
+                            -> Set peeraddr
+getPeerSharingResponsePeers knownPeers =
+    Map.keysSet
+  $ Map.filter (\case
+                  KnownPeerInfo _ _ _ DoAdvertisePeer _ -> True
+                  _                                     -> False
+               )
+  $ allPeers knownPeers
 
 
 ---------------------------------
