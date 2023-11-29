@@ -149,6 +149,8 @@ tests =
                  prop_diffusion_ig_valid_transition_order
   , testProperty "cm & ig timeouts enforced"
                  prop_diffusion_timeouts_enforced
+  , testProperty "any Cold async demotion"
+                 prop_track_coolingToCold_demotions
   , testProperty "unit #4177" unit_4177
 #endif
 #if !defined(mingw32_HOST_OS)
@@ -434,6 +436,79 @@ unit_4177 = prop_inbound_governor_transitions_coverage absNoAttenuation script
             ]
           )
         ]
+
+
+-- | Attempt to reproduce local root disconnect bug
+--
+-- Configure relay A to have relay B as localroot peer.
+-- Start relay B then start relay A.
+-- Verify that the relay A is connected to relay B.
+-- Then just restart relay B.
+-- The connection will never be re-established again.
+--
+prop_track_coolingToCold_demotions :: AbsBearerInfo
+                                   -> DiffusionScript
+                                   -> Property
+prop_track_coolingToCold_demotions defaultBearerInfo diffScript =
+
+  let sim :: forall s . IOSim s Void
+      sim = diffusionSimulation (toBearerInfo defaultBearerInfo)
+                                diffScript
+                                iosimTracer
+
+      events :: [Events DiffusionTestTrace]
+      events = fmap ( Signal.eventsFromList
+                    . fmap (\(WithName _ (WithTime t b)) -> (t, b))
+                    )
+             . Trace.toList
+             . splitWithNameTrace
+             . Trace.fromList ()
+             . fmap snd
+             . Signal.eventsToList
+             . Signal.eventsFromListUpToTime (Time (10 * 60 * 60))
+             . Trace.toList
+             . fmap (\(WithTime t (WithName name b)) -> (t, WithName name (WithTime t b)))
+             . withTimeNameTraceEvents
+                @DiffusionTestTrace
+                @NtNAddr
+             . traceFromList
+             . fmap (\(t, tid, tl, te) -> SimEvent t tid tl te)
+             . take 125000
+             . traceEvents
+             $ runSimTrace sim
+
+     in conjoin
+      $ (\ev ->
+        let evsList = eventsToList ev
+            lastTime = fst
+                     . last
+                     $ evsList
+         in classifySimulatedTime lastTime
+          $ classifyNumberOfEvents (length evsList)
+          $ verify_coolingToColdDemotions ev
+        )
+      <$> events
+
+  where
+    verify_coolingToColdDemotions :: Events DiffusionTestTrace -> Property
+    verify_coolingToColdDemotions events =
+      let anyColdDemotion :: Bool
+          anyColdDemotion =
+              (\l -> case break (== PeerCold) l of
+                      (_, _:_) -> True
+                      (xs, _)  -> all (> PeerCooling) xs
+              )
+            . concatMap snd
+            . Signal.eventsToList
+            . Signal.selectEvents
+                (\case DiffusionPeerSelectionTrace (TraceDemoteAsynchronous m)               -> Just (map fst $ Map.elems m)
+                       DiffusionPeerSelectionTrace (TraceDemoteLocalAsynchronous m)          -> Just (map fst $ Map.elems m)
+                       DiffusionPeerSelectionTrace (TraceDemoteBigLedgerPeersAsynchronous m) -> Just (map fst $ Map.elems m)
+                       _                                                                     -> Nothing
+                )
+            $ events
+
+       in property anyColdDemotion
 
 -- | This test coverage of ServerTrace constructors, namely accept errors.
 --
