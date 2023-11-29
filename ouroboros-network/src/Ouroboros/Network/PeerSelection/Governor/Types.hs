@@ -120,6 +120,8 @@ data PeerSelectionPolicy peeraddr m = PeerSelectionPolicy {
        policyPeerShareOverallTimeout    :: !DiffTime,
        -- ^ Amount of time the overall batches of peer sharing requests are
        -- allowed to take
+       policyPeerShareActivationDelay    :: !DiffTime,
+       -- ^ Delay until we consider a peer suitable for peersharing
 
        -- | Reconnection delay, passed from `ExitPolicy`.
        --
