@@ -21,6 +21,8 @@ import           Control.Monad.Class.MonadTime.SI
 import           Control.Monad.Class.MonadTimer.SI
 
 import           Ouroboros.Network.PeerSelection.Governor.Types
+import           Ouroboros.Network.PeerSelection.PeerAdvertise
+                     (PeerAdvertise (..))
 import           Ouroboros.Network.PeerSelection.PeerSharing (PeerSharing (..))
 import qualified Ouroboros.Network.PeerSelection.State.EstablishedPeers as EstablishedPeers
 import           Ouroboros.Network.PeerSelection.State.KnownPeers
@@ -181,6 +183,10 @@ jobPeerShare PeerSelectionActions{requestPeerShare}
                newPeers    = [ p | Right (PeerSharingResult ps) <- totalResults
                                  , p <- ps
                                  , not (isKnownLedgerPeer p (knownPeers st)) ]
+               peerAdvertiseValue a =
+                 if KnownPeers.member a (knownPeers st)
+                    then Nothing
+                    else Just DoAdvertisePeer
             in Decision { decisionTrace = [ TracePeerShareResults peerResults
                                           , TracePeerShareResultsFiltered newPeers
                                           ]
@@ -190,7 +196,7 @@ jobPeerShare PeerSelectionActions{requestPeerShare}
                                                (Map.fromList
                                                 $ map (\a -> ( a
                                                              , ( Nothing
-                                                               , Nothing
+                                                               , peerAdvertiseValue a
                                                                , Nothing))
                                                       )
                                                       newPeers)
@@ -225,6 +231,11 @@ jobPeerShare PeerSelectionActions{requestPeerShare}
             let newPeers = [ p | Just (Right (PeerSharingResult ps)) <- partialResults
                                , p <- ps
                                , not (isKnownLedgerPeer p (knownPeers st)) ]
+                peerAdvertiseValue a =
+                  if KnownPeers.member a (knownPeers st)
+                     then Nothing
+                     else Just DoAdvertisePeer
+
              in Decision { decisionTrace = [ TracePeerShareResults peerResults
                                            , TracePeerShareResultsFiltered newPeers
                                            ]
@@ -234,7 +245,7 @@ jobPeerShare PeerSelectionActions{requestPeerShare}
                                                 (Map.fromList
                                                  $ map (\a -> ( a
                                                               , ( Nothing
-                                                                , Nothing
+                                                                , peerAdvertiseValue a
                                                                 , Nothing))
                                                        )
                                                        newPeers)
@@ -288,6 +299,10 @@ jobPeerShare PeerSelectionActions{requestPeerShare}
                 Left partialResults -> [ p | Just (Right (PeerSharingResult ps)) <- partialResults
                                            , p <- ps
                                            , not (isKnownLedgerPeer p (knownPeers st)) ]
+            peerAdvertiseValue a =
+              if KnownPeers.member a (knownPeers st)
+                 then Nothing
+                 else Just DoAdvertisePeer
 
          in Decision { decisionTrace = [ TracePeerShareResults peerResults
                                        , TracePeerShareResultsFiltered newPeers
@@ -298,7 +313,7 @@ jobPeerShare PeerSelectionActions{requestPeerShare}
                                             (Map.fromList
                                              $ map (\a -> ( a
                                                           , ( Nothing
-                                                            , Nothing
+                                                            , peerAdvertiseValue a
                                                             , Nothing))
                                                    )
                                                    newPeers)

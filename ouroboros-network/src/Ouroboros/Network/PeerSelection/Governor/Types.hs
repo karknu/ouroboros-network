@@ -462,7 +462,8 @@ toPublicState :: PeerSelectionState peeraddr peerconn
 toPublicState PeerSelectionState { knownPeers
                                  } =
    PublicPeerSelectionState {
-     availableToShare = KnownPeers.getPeerSharingResponsePeers knownPeers
+     availableToShare =
+       KnownPeers.getPeerSharingResponsePeers knownPeers
    }
 
 -- Peer selection counters.
