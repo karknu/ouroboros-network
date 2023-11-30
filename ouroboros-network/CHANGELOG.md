@@ -7,6 +7,12 @@
 
 ### Non-breaking changes
 
+* Fix `KnownPeers.insert` function semantic bug where it could easily misused,
+  overwriting values.
+* Made (light) peer sharing results advertisable unless already known
+* Peer sharing is now delayed for 5minutes for newly established peers.
+* `policyPeerShareRetryTime` to 900s
+
 ## 0.10.1.0 -- 2023-11-29
 
 ### Breaking changes
